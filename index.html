@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>One Sport</title>
+  <link rel="stylesheet" href="https://vjs.zencdn.net/8.5.2/video-js.css" />
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Cairo', sans-serif;
+      background: url('https://d.top4top.io/p_3453scd8g0.png') no-repeat center center fixed;
+      background-size: cover;
+      color: #000;
+    }
+    .container {
+      padding: 15px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+    }
+    .section-card, .channel-card {
+      background: #fff;
+      color: #000;
+      border: 0.5px solid #ccc;
+      border-radius: 12px;
+      padding: 10px;
+      cursor: pointer;
+      text-align: center;
+      transition: transform 0.2s;
+      user-select: none;
+    }
+    .section-card:hover, .channel-card:hover {
+      transform: scale(1.05);
+    }
+    .section-image, .channel-logo {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      object-fit: cover;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      background: none;
+      padding: 0;
+    }
+    .section-title, .channel-name {
+      font-weight: bold;
+      font-size: 1.1rem;
+      color: #000;
+    }
+    .channels-container {
+      padding: 10px 15px 30px 15px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+    }
+    #playerContainer {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: black;
+      z-index: 10000;
+    }
+    .video-js {
+      width: 100% !important;
+      height: 100% !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="sectionsContainer"></div>
+
+  <div id="channelsSection" style="display:none;">
+    <div class="channels-container" id="channelsContainer"></div>
+  </div>
+
+  <div id="playerContainer">
+    <video id="videoPlayer" class="video-js vjs-default-skin" controls autoplay playsinline></video>
+  </div>
+
+  <!-- Firebase & Video.js & hls.js -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://vjs.zencdn.net/8.5.2/video.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyARzpeY20p5R1RXGYX_83zQkyLHywp-SE4",
+      authDomain: "one-sport-67e48.firebaseapp.com",
+      databaseURL: "https://one-sport-67e48-default-rtdb.asia-southeast1.firebasedatabase.app/",
+      projectId: "one-sport-67e48",
+      storageBucket: "one-sport-67e48.appspot.com",
+      messagingSenderId: "238395812570",
+      appId: "1:238395812570:web:6361f8ecac34d1061fd3e3"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const categoriesRef = db.ref("categories");
+    const channelsRef = db.ref("channels");
+
+    const sectionsContainer = document.getElementById("sectionsContainer");
+    const channelsSection = document.getElementById("channelsSection");
+    const channelsContainer = document.getElementById("channelsContainer");
+    const playerContainer = document.getElementById("playerContainer");
+    const videoElement = document.getElementById("videoPlayer");
+
+    const videojsPlayer = videojs(videoElement);
+
+    async function loadSections() {
+      sectionsContainer.innerHTML = 'جارٍ التحميل...';
+      channelsSection.style.display = 'none';
+      sectionsContainer.style.display = 'grid';
+      try {
+        const snapshot = await categoriesRef.once("value");
+        const categories = snapshot.val();
+        sectionsContainer.innerHTML = '';
+        if (!categories) {
+          sectionsContainer.innerHTML = '<p>لا توجد أقسام.</p>';
+          return;
+        }
+        Object.entries(categories).forEach(([key, category]) => {
+          const card = document.createElement('div');
+          card.className = 'section-card';
+          card.innerHTML = `<img src="${category.image || ''}" class="section-image" /><div class="section-title">${category.name}</div>`;
+          card.onclick = () => loadChannels(key);
+          sectionsContainer.appendChild(card);
+        });
+      } catch (err) {
+        sectionsContainer.innerHTML = '<p>خطأ في تحميل الأقسام.</p>';
+      }
+    }
+
+    async function loadChannels(categoryId) {
+      sectionsContainer.style.display = 'none';
+      channelsSection.style.display = 'block';
+      channelsContainer.innerHTML = 'جارٍ التحميل...';
+      try {
+        const snapshot = await channelsRef.orderByChild('category').equalTo(categoryId).once("value");
+        const channels = snapshot.val();
+        channelsContainer.innerHTML = '';
+        if (!channels) {
+          channelsContainer.innerHTML = '<p>لا توجد قنوات في هذا القسم.</p>';
+          return;
+        }
+        Object.entries(channels).forEach(([key, channel]) => {
+          const card = document.createElement('div');
+          card.className = 'channel-card';
+          card.innerHTML = `<img src="${channel.logo || ''}" class="channel-logo" /><div class="channel-name">${channel.name}</div>`;
+          card.onclick = () => playChannel(channel);
+          channelsContainer.appendChild(card);
+        });
+      } catch (err) {
+        channelsContainer.innerHTML = '<p>خطأ في تحميل القنوات.</p>';
+      }
+    }
+
+    function getBestStreamUrl(channel) {
+      return channel.hd_url || channel.sd_url || channel.url || channel.low_url || '';
+    }
+
+    function playChannel(channel) {
+      const url = getBestStreamUrl(channel);
+      if (!url) {
+        alert('لا يوجد رابط تشغيل متاح');
+        return;
+      }
+      playerContainer.style.display = 'block';
+
+      // تشغيل الفيديو باستخدام hls.js مع Video.js
+      if (Hls.isSupported()) {
+        if (window.hls) {
+          window.hls.destroy();
+        }
+        window.hls = new Hls();
+        window.hls.loadSource(url);
+        window.hls.attachMedia(videoElement);
+        window.hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          videojsPlayer.play();
+        });
+      } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+        videoElement.src = url;
+        videoElement.addEventListener('loadedmetadata', () => {
+          videojsPlayer.play();
+        });
+      } else {
+        alert('المتصفح لا يدعم تشغيل هذا الفيديو.');
+      }
+    }
+
+    // إغلاق الفيديو والعودة للقسم عند الضغط على خلفية المشغل
+    playerContainer.addEventListener('click', e => {
+      if (e.target === playerContainer) {
+        if (window.hls) {
+          window.hls.destroy();
+          window.hls = null;
+        }
+        videojsPlayer.pause();
+        playerContainer.style.display = 'none';
+        channelsSection.style.display = 'block';
+      }
+    });
+
+    loadSections();
+  </script>
+</body>
+</html>
