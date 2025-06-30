@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>One Sport</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Cairo', sans-serif;
+      background: url('https://d.top4top.io/p_3453scd8g0.png') no-repeat center center fixed;
+      background-size: cover;
+      color: #000;
+    }
+    .container {
+      padding: 15px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+    }
+    .section-card, .channel-card {
+      background: #fff;
+      color: #000;
+      border: 0.5px solid #ccc;
+      border-radius: 12px;
+      padding: 10px;
+      cursor: pointer;
+      text-align: center;
+      transition: transform 0.2s;
+      user-select: none;
+    }
+    .section-card:hover, .channel-card:hover {
+      transform: scale(1.05);
+    }
+    .section-image, .channel-logo {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      object-fit: cover;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      background: none;
+      padding: 0;
+    }
+    .section-title, .channel-name {
+      font-weight: bold;
+      font-size: 1.1rem;
+      color: #000;
+    }
+    .channels-container {
+      padding: 10px 15px 30px 15px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 15px;
+    }
+    #playerContainer {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: black;
+      z-index: 10000;
+      overflow: hidden;
+    }
+    #videoPlayer {
+      width: 100%;
+      height: 100%;
+      background-color: black;
+    }
+    #qualityButtons {
+      position: fixed;
+      top: 15px;
+      left: 70px;
+      z-index: 10003;
+      display: flex;
+      gap: 8px;
+      opacity: 1;
+      transition: opacity 0.5s;
+    }
+    #qualityButtons button {
+      background-color: rgba(0,0,0,0.6);
+      border: none;
+      color: white;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 14px;
+      user-select: none;
+      transition: background-color 0.3s;
+    }
+    #qualityButtons button:hover {
+      background-color: rgba(255,255,255,0.2);
+    }
+    #qualityButtons button.active {
+      background-color: #007bff;
+    }
+    /* زر الرجوع أسفل يمين الشاشة */
+    #backButton {
+      position: fixed;
+      bottom: 15px;
+      right: 15px;
+      background-color: rgba(0,0,0,0.6);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      font-size: 24px;
+      cursor: pointer;
+      z-index: 10004;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="sectionsContainer"></div>
+
+  <div id="channelsSection" style="display:none;">
+    <div class="channels-container" id="channelsContainer"></div>
+  </div>
+
+  <div id="playerContainer">
+    <video id="videoPlayer" controls autoplay></video>
+    <div id="qualityButtons" style="display:none;">
+      <button data-quality="main" class="active">Main</button>
+      <button data-quality="hd">HD</button>
+      <button data-quality="sd">SD</button>
+      <button data-quality="low">Low</button>
+    </div>
+  </div>
+
+  <button id="backButton" title="الرجوع" style="display:none;">←</button>
+
+  <!-- Firebase + HLS -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyARzpeY20p5R1RXGYX_83zQkyLHywp-SE4",
+      authDomain: "one-sport-67e48.firebaseapp.com",
+      databaseURL: "https://one-sport-67e48-default-rtdb.asia-southeast1.firebasedatabase.app/",
+      projectId: "one-sport-67e48",
+      storageBucket: "one-sport-67e48.appspot.com",
+      messagingSenderId: "238395812570",
+      appId: "1:238395812570:web:6361f8ecac34d1061fd3e3"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const categoriesRef = db.ref("categories");
+    const channelsRef = db.ref("channels");
+
+    const sectionsContainer = document.getElementById("sectionsContainer");
+    const channelsSection = document.getElementById("channelsSection");
+    const channelsContainer = document.getElementById("channelsContainer");
+    const playerContainer = document.getElementById("playerContainer");
+    const videoElement = document.getElementById("videoPlayer");
+    const backButton = document.getElementById("backButton");
+    const qualityButtons = document.getElementById("qualityButtons");
+    let hls;
+    let currentCategoryId = null;
+    let currentChannel = null;
+    let navigationStack = [];
+
+    async function loadSections(parentId = '') {
+      sectionsContainer.innerHTML = 'جارٍ التحميل...';
+      channelsSection.style.display = 'none';
+      playerContainer.style.display = 'none';
+
+      try {
+        const snapshot = await categoriesRef.once("value");
+        const categories = snapshot.val();
+        sectionsContainer.innerHTML = '';
+        if (!categories) {
+          sectionsContainer.innerHTML = '<p>لا توجد أقسام.</p>';
+          return;
+        }
+
+        // تصفية الأقسام حسب parentId (الأقسام الفرعية فقط)
+        const filteredCategories = Object.entries(categories).filter(([key, category]) => {
+          return (category.parent || '') === parentId;
+        });
+
+        if (filteredCategories.length > 0) {
+          // هناك أقسام فرعية، نظهرها
+          filteredCategories.forEach(([key, category]) => {
+            const card = document.createElement('div');
+            card.className = 'section-card';
+            card.innerHTML = `<img src="${category.image || ''}" class="section-image" /><div class="section-title">${category.name}</div>`;
+            card.onclick = () => {
+              navigationStack.push(parentId);
+              loadSections(key);
+            };
+            sectionsContainer.appendChild(card);
+          });
+
+          sectionsContainer.style.display = 'grid';
+          channelsSection.style.display = 'none';
+          playerContainer.style.display = 'none';
+
+          // إظهار زر الرجوع إذا لم نكن في الصفحة الرئيسية
+          if (parentId !== '') {
+            backButton.style.display = 'flex';
+          } else {
+            backButton.style.display = 'none';
+          }
+        } else {
+          // لا توجد أقسام فرعية، نعرض القنوات في هذا القسم
+          loadChannels(parentId);
+        }
+      } catch (err) {
+        sectionsContainer.innerHTML = '<p>خطأ في تحميل الأقسام.</p>';
+      }
+    }
+
+    async function loadChannels(categoryId) {
+      sectionsContainer.style.display = 'none';
+      channelsSection.style.display = 'block';
+      channelsContainer.innerHTML = 'جارٍ التحميل...';
+      playerContainer.style.display = 'none';
+
+      try {
+        const snapshot = await channelsRef.orderByChild('category').equalTo(categoryId).once("value");
+        const channels = snapshot.val();
+        channelsContainer.innerHTML = '';
+        if (!channels) {
+          channelsContainer.innerHTML = '<p>لا توجد قنوات في هذا القسم.</p>';
+          return;
+        }
+        Object.entries(channels).forEach(([key, channel]) => {
+          const card = document.createElement('div');
+          card.className = 'channel-card';
+          card.innerHTML = `<img src="${channel.logo || ''}" class="channel-logo" /><div class="channel-name">${channel.name}</div>`;
+          card.onclick = () => playChannel(channel);
+          channelsContainer.appendChild(card);
+        });
+
+        // إظهار زر الرجوع عند عرض القنوات
+        backButton.style.display = 'flex';
+      } catch (err) {
+        channelsContainer.innerHTML = '<p>خطأ في تحميل القنوات.</p>';
+      }
+    }
+
+    function getStreamUrlByQuality(channel, quality) {
+      switch(quality) {
+        case 'main': return channel.urlMain || '';
+        case 'hd': return channel.urlHD || '';
+        case 'sd': return channel.urlSD || '';
+        case 'low': return channel.urlLow || '';
+        default: return '';
+      }
+    }
+
+    function playChannel(channel) {
+      currentChannel = channel;
+      const url = getStreamUrlByQuality(channel, 'main');
+      if (!url) {
+        alert('لا يوجد رابط تشغيل متاح');
+        return;
+      }
+
+      playerContainer.style.display = 'block';
+      channelsSection.style.display = 'none';
+      sectionsContainer.style.display = 'none';
+
+      showQualityButtons(channel);
+      backButton.style.display = 'flex';
+      loadStream(url);
+    }
+
+    function loadStream(url) {
+      if (hls) {
+        hls.destroy();
+        hls = null;
+      }
+      videoElement.pause();
+      videoElement.src = '';
+
+      if (Hls.isSupported()) {
+        hls = new Hls();
+        hls.loadSource(url);
+        hls.attachMedia(videoElement);
+        hls.on(Hls.Events.MANIFEST_PARSED, function () {
+          videoElement.play();
+        });
+        hls.on(Hls.Events.ERROR, function(event, data) {
+          if(data.fatal) {
+            alert("حدث خطأ أثناء تشغيل الفيديو");
+            closePlayer();
+          }
+        });
+      } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+        videoElement.src = url;
+        videoElement.addEventListener('loadedmetadata', function () {
+          videoElement.play();
+        });
+      } else {
+        alert('المتصفح لا يدعم تشغيل هذا النوع من الروابط');
+      }
+    }
+
+    function showQualityButtons(channel) {
+      let hasQuality = false;
+      ['main','hd','sd','low'].forEach(q => {
+        if (getStreamUrlByQuality(channel, q)) hasQuality = true;
+      });
+      if (!hasQuality) {
+        qualityButtons.style.display = 'none';
+        return;
+      }
+      qualityButtons.style.display = 'flex';
+
+      ['main','hd','sd','low'].forEach(quality => {
+        const btn = qualityButtons.querySelector(`button[data-quality="${quality}"]`);
+        if (!btn) return;
+        if (getStreamUrlByQuality(channel, quality)) {
+          btn.style.display = 'inline-block';
+        } else {
+          btn.style.display = 'none';
+        }
+        btn.classList.remove('active');
+      });
+
+      const mainBtn = qualityButtons.querySelector('button[data-quality="main"]');
+      if(mainBtn && mainBtn.style.display !== 'none') {
+        mainBtn.classList.add('active');
+      } else {
+        const firstVisible = Array.from(qualityButtons.children).find(b => b.style.display !== 'none');
+        if(firstVisible) firstVisible.classList.add('active');
+      }
+    }
+
+    qualityButtons.addEventListener('click', e => {
+      if (e.target.tagName !== 'BUTTON') return;
+      if (!currentChannel) return;
+
+      const selectedQuality = e.target.getAttribute('data-quality');
+      const url = getStreamUrlByQuality(currentChannel, selectedQuality);
+      if (!url) return;
+
+      Array.from(qualityButtons.children).forEach(btn => btn.classList.remove('active'));
+      e.target.classList.add('active');
+
+      loadStream(url);
+    });
+
+    function closePlayer() {
+      playerContainer.style.display = 'none';
+      videoElement.pause();
+      if(hls) {
+        hls.destroy();
+        hls = null;
+      }
+      currentChannel = null;
+      qualityButtons.style.display = 'none';
+      channelsSection.style.display = 'block';
+      backButton.style.display = 'flex';
+    }
+
+    backButton.onclick = () => {
+      if (playerContainer.style.display === 'block') {
+        closePlayer();
+        return;
+      }
+
+      if (channelsSection.style.display === 'block') {
+        if (navigationStack.length > 0) {
+          const prevParent = navigationStack.pop();
+          loadSections(prevParent);
+        } else {
+          loadSections('');
+        }
+        return;
+      }
+
+      if (sectionsContainer.style.display === 'grid') {
+        if (navigationStack.length > 0) {
+          const prevParent = navigationStack.pop();
+          loadSections(prevParent);
+        }
+        return;
+      }
+    };
+
+    window.onload = () => {
+      loadSections('');
+    };
+  </script>
+</body>
+</html>
