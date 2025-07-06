@@ -61,21 +61,33 @@
       background-color: black;
       z-index: 10000;
       overflow: hidden;
+      flex-direction: column;
     }
     #videoPlayer {
       width: 100%;
-      height: 100%;
+      height: calc(100% - 60px);
       background-color: black;
     }
+    /* شريط الجودات فوق المشغل */
     #qualityButtons {
       position: fixed;
-      top: 15px;
-      left: 70px;
-      z-index: 10003;
+      top: 0; /* أعلى */
+      left: 0;
+      width: 100%;
+      background: rgba(0,0,0,0.7);
       display: flex;
+      flex-wrap: nowrap;
+      overflow-x: auto;
       gap: 8px;
+      padding: 6px 10px;
+      box-sizing: border-box;
+      z-index: 10003;
+      transition: opacity 0.5s ease;
       opacity: 1;
-      transition: opacity 0.5s;
+    }
+    #qualityButtons.hidden {
+      opacity: 0;
+      pointer-events: none;
     }
     #qualityButtons button {
       background-color: rgba(0,0,0,0.6);
@@ -87,7 +99,9 @@
       font-weight: bold;
       font-size: 14px;
       user-select: none;
+      flex: 0 0 auto;
       transition: background-color 0.3s;
+      white-space: nowrap;
     }
     #qualityButtons button:hover {
       background-color: rgba(255,255,255,0.2);
@@ -98,8 +112,8 @@
     /* زر الرجوع أسفل يمين الشاشة */
     #backButton {
       position: fixed;
-      bottom: 15px;
-      right: 15px;
+      bottom: 15px;  /* تعديل المسافة لتكون أسفل الشاشة */
+      right: 15px;   /* جهة اليمين */
       background-color: rgba(0,0,0,0.6);
       color: white;
       border: none;
@@ -124,14 +138,9 @@
     <div class="channels-container" id="channelsContainer"></div>
   </div>
 
-  <div id="playerContainer">
+  <div id="playerContainer" style="display:flex;">
     <video id="videoPlayer" controls autoplay></video>
-    <div id="qualityButtons" style="display:none;">
-      <button data-quality="main" class="active">Main</button>
-      <button data-quality="hd">HD</button>
-      <button data-quality="sd">SD</button>
-      <button data-quality="low">Low</button>
-    </div>
+    <div id="qualityButtons" style="display:none;"></div>
   </div>
 
   <button id="backButton" title="الرجوع" style="display:none;">←</button>
@@ -163,15 +172,28 @@
     const videoElement = document.getElementById("videoPlayer");
     const backButton = document.getElementById("backButton");
     const qualityButtons = document.getElementById("qualityButtons");
-    let hls;
+
+    let hls = null;
     let currentCategoryId = null;
     let currentChannel = null;
     let navigationStack = [];
+
+    // ترتيب الجودات حسب الأولوية (تطابق أسماء الحقول في Firebase)
+    const qualityKeys = [
+      { key: 'urlMain', label: 'MAIN' },
+      { key: 'urlHD', label: 'HD' },
+      { key: 'urlSD', label: 'SD' },
+      { key: 'urlLow', label: 'LOW' }
+    ];
+
+    // مؤقت الاختفاء التلقائي
+    let hideQualityTimeout;
 
     async function loadSections(parentId = '') {
       sectionsContainer.innerHTML = 'جارٍ التحميل...';
       channelsSection.style.display = 'none';
       playerContainer.style.display = 'none';
+      backButton.style.display = 'none';
 
       try {
         const snapshot = await categoriesRef.once("value");
@@ -182,13 +204,11 @@
           return;
         }
 
-        // تصفية الأقسام حسب parentId (الأقسام الفرعية فقط)
         const filteredCategories = Object.entries(categories).filter(([key, category]) => {
           return (category.parent || '') === parentId;
         });
 
         if (filteredCategories.length > 0) {
-          // هناك أقسام فرعية، نظهرها
           filteredCategories.forEach(([key, category]) => {
             const card = document.createElement('div');
             card.className = 'section-card';
@@ -204,14 +224,10 @@
           channelsSection.style.display = 'none';
           playerContainer.style.display = 'none';
 
-          // إظهار زر الرجوع إذا لم نكن في الصفحة الرئيسية
           if (parentId !== '') {
             backButton.style.display = 'flex';
-          } else {
-            backButton.style.display = 'none';
           }
         } else {
-          // لا توجد أقسام فرعية، نعرض القنوات في هذا القسم
           loadChannels(parentId);
         }
       } catch (err) {
@@ -224,6 +240,7 @@
       channelsSection.style.display = 'block';
       channelsContainer.innerHTML = 'جارٍ التحميل...';
       playerContainer.style.display = 'none';
+      backButton.style.display = 'flex';
 
       try {
         const snapshot = await channelsRef.orderByChild('category').equalTo(categoryId).once("value");
@@ -240,48 +257,102 @@
           card.onclick = () => playChannel(channel);
           channelsContainer.appendChild(card);
         });
-
-        // إظهار زر الرجوع عند عرض القنوات
-        backButton.style.display = 'flex';
       } catch (err) {
         channelsContainer.innerHTML = '<p>خطأ في تحميل القنوات.</p>';
       }
     }
 
-    function getStreamUrlByQuality(channel, quality) {
-      switch(quality) {
-        case 'main': return channel.urlMain || '';
-        case 'hd': return channel.urlHD || '';
-        case 'sd': return channel.urlSD || '';
-        case 'low': return channel.urlLow || '';
-        default: return '';
+    // تعديل دالة إظهار جميع الجودات الأربعة + الجودات الإضافية مع الحفاظ على ترتيب الجودات
+    function getAllQualityLinks(channel) {
+      const links = [];
+
+      qualityKeys.forEach(q => {
+        if (channel[q.key] && channel[q.key].trim() !== '') {
+          links.push({quality: q.label, url: channel[q.key].trim()});
+        }
+      });
+
+      if (channel.extraLinks) {
+        for (const [key, url] of Object.entries(channel.extraLinks)) {
+          if (url && url.trim() !== '') {
+            if (!qualityKeys.some(q => q.key.toLowerCase() === ('url' + key).toLowerCase())) {
+              links.push({quality: key, url: url.trim()});
+            }
+          }
+        }
       }
+
+      return links;
     }
 
     function playChannel(channel) {
       currentChannel = channel;
-      const url = getStreamUrlByQuality(channel, 'main');
-      if (!url) {
+      const allLinks = getAllQualityLinks(channel);
+      if (allLinks.length === 0) {
         alert('لا يوجد رابط تشغيل متاح');
         return;
       }
 
-      playerContainer.style.display = 'block';
+      playerContainer.style.display = 'flex';
       channelsSection.style.display = 'none';
       sectionsContainer.style.display = 'none';
-
-      showQualityButtons(channel);
       backButton.style.display = 'flex';
-      loadStream(url);
+
+      showQualityButtons(allLinks);
+      loadStreamWithFallback(allLinks, 0);
+
+      setupQualityButtonsAutoHide();
     }
 
-    function loadStream(url) {
+    // عرض أزرار الجودات
+    function showQualityButtons(links) {
+      qualityButtons.innerHTML = '';
+      qualityButtons.style.display = 'flex';
+      qualityButtons.classList.remove('hidden');
+
+      links.forEach((link, index) => {
+        const btn = document.createElement('button');
+        btn.textContent = link.quality;
+        btn.dataset.qualityIndex = index;
+        btn.onclick = () => {
+          setActiveQuality(index, links);
+          resetHideQualityTimeout();
+        };
+        qualityButtons.appendChild(btn);
+      });
+
+      // تفعيل أول جودة بشكل افتراضي
+      setActiveQuality(0, links);
+    }
+
+    // تعيين جودة نشطة وتحميلها
+    function setActiveQuality(index, links) {
+      Array.from(qualityButtons.children).forEach(btn => btn.classList.remove('active'));
+      const activeBtn = qualityButtons.children[index];
+      if (activeBtn) activeBtn.classList.add('active');
+
+      loadStreamWithFallback(links, index);
+    }
+
+    // تحميل البث مع المحاولة التلقائية على الجودات الأخرى عند الخطأ
+    function loadStreamWithFallback(links, startIndex) {
       if (hls) {
         hls.destroy();
         hls = null;
       }
       videoElement.pause();
       videoElement.src = '';
+
+      if (startIndex >= links.length) {
+        // لم يتم العثور على جودة تعمل
+        return;
+      }
+
+      const url = links[startIndex].url;
+      if (!url) {
+        loadStreamWithFallback(links, startIndex + 1);
+        return;
+      }
 
       if (Hls.isSupported()) {
         hls = new Hls();
@@ -291,104 +362,69 @@
           videoElement.play();
         });
         hls.on(Hls.Events.ERROR, function(event, data) {
-          if(data.fatal) {
-            alert("حدث خطأ أثناء تشغيل الفيديو");
-            closePlayer();
+          if (data.fatal) {
+            // جرب الجودة التالية بدون الخروج
+            loadStreamWithFallback(links, startIndex + 1);
           }
         });
       } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
         videoElement.src = url;
-        videoElement.addEventListener('loadedmetadata', function () {
-          videoElement.play();
+        videoElement.addEventListener('error', () => {
+          loadStreamWithFallback(links, startIndex + 1);
         });
+        videoElement.play();
       } else {
-        alert('المتصفح لا يدعم تشغيل هذا النوع من الروابط');
+        alert('مشغل الفيديو غير مدعوم في هذا المتصفح.');
       }
     }
 
-    function showQualityButtons(channel) {
-      let hasQuality = false;
-      ['main','hd','sd','low'].forEach(q => {
-        if (getStreamUrlByQuality(channel, q)) hasQuality = true;
-      });
-      if (!hasQuality) {
-        qualityButtons.style.display = 'none';
-        return;
-      }
-      qualityButtons.style.display = 'flex';
+    // مؤقت إخفاء شريط الجودات بعد 3 ثواني من عدم التفاعل
+    function setupQualityButtonsAutoHide() {
+      resetHideQualityTimeout();
 
-      ['main','hd','sd','low'].forEach(quality => {
-        const btn = qualityButtons.querySelector(`button[data-quality="${quality}"]`);
-        if (!btn) return;
-        if (getStreamUrlByQuality(channel, quality)) {
-          btn.style.display = 'inline-block';
-        } else {
-          btn.style.display = 'none';
+      qualityButtons.addEventListener('mousemove', resetHideQualityTimeout);
+      qualityButtons.addEventListener('touchstart', resetHideQualityTimeout);
+      videoElement.addEventListener('mousemove', resetHideQualityTimeout);
+      videoElement.addEventListener('touchstart', resetHideQualityTimeout);
+    }
+
+    function resetHideQualityTimeout() {
+      qualityButtons.classList.remove('hidden');
+      clearTimeout(hideQualityTimeout);
+      hideQualityTimeout = setTimeout(() => {
+        qualityButtons.classList.add('hidden');
+      }, 3000);
+    }
+
+    // زر الرجوع
+    backButton.addEventListener('click', () => {
+      if (playerContainer.style.display === 'flex') {
+        videoElement.pause();
+        if (hls) {
+          hls.destroy();
+          hls = null;
         }
-        btn.classList.remove('active');
-      });
-
-      const mainBtn = qualityButtons.querySelector('button[data-quality="main"]');
-      if(mainBtn && mainBtn.style.display !== 'none') {
-        mainBtn.classList.add('active');
-      } else {
-        const firstVisible = Array.from(qualityButtons.children).find(b => b.style.display !== 'none');
-        if(firstVisible) firstVisible.classList.add('active');
-      }
-    }
-
-    qualityButtons.addEventListener('click', e => {
-      if (e.target.tagName !== 'BUTTON') return;
-      if (!currentChannel) return;
-
-      const selectedQuality = e.target.getAttribute('data-quality');
-      const url = getStreamUrlByQuality(currentChannel, selectedQuality);
-      if (!url) return;
-
-      Array.from(qualityButtons.children).forEach(btn => btn.classList.remove('active'));
-      e.target.classList.add('active');
-
-      loadStream(url);
-    });
-
-    function closePlayer() {
-      playerContainer.style.display = 'none';
-      videoElement.pause();
-      if(hls) {
-        hls.destroy();
-        hls = null;
-      }
-      currentChannel = null;
-      qualityButtons.style.display = 'none';
-      channelsSection.style.display = 'block';
-      backButton.style.display = 'flex';
-    }
-
-    backButton.onclick = () => {
-      if (playerContainer.style.display === 'block') {
-        closePlayer();
-        return;
-      }
-
-      if (channelsSection.style.display === 'block') {
+        playerContainer.style.display = 'none';
+        qualityButtons.style.display = 'none';
+        channelsSection.style.display = 'block';
+      } else if (channelsSection.style.display === 'block') {
+        channelsSection.style.display = 'none';
+        sectionsContainer.style.display = 'grid';
         if (navigationStack.length > 0) {
-          const prevParent = navigationStack.pop();
-          loadSections(prevParent);
+          currentCategoryId = navigationStack.pop();
+          loadSections(currentCategoryId);
         } else {
           loadSections('');
         }
-        return;
-      }
-
-      if (sectionsContainer.style.display === 'grid') {
+      } else {
         if (navigationStack.length > 0) {
-          const prevParent = navigationStack.pop();
-          loadSections(prevParent);
+          currentCategoryId = navigationStack.pop();
+          loadSections(currentCategoryId);
         }
-        return;
       }
-    };
+    });
 
+    // تحميل الأقسام الرئيسية عند فتح الصفحة
     window.onload = () => {
       loadSections('');
     };
