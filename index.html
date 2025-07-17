@@ -4,13 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>One Sport</title>
+
+  <!-- إضافة خط قاهرة -->
+  <link href="https://fonts.googleapis.com/css2?family=Cairo&display=swap" rel="stylesheet" />
+
   <style>
     body {
       margin: 0;
-      font-family: 'Cairo', sans-serif;
-      background: url('https://d.top4top.io/p_3453scd8g0.png') no-repeat center center fixed;
-      background-size: cover;
-      color: #000;
+      font-family: 'Cairo', sans-serif !important;
+      background-color: #000;
+      color: #fff;
     }
     .container {
       padding: 15px;
@@ -19,13 +22,11 @@
       gap: 15px;
     }
     .section-card, .channel-card {
-      background: #fff;
-      color: #000;
-      border: 0.5px solid #ccc;
-      border-radius: 12px;
-      padding: 10px;
-      cursor: pointer;
+      background: transparent;
+      border: none;
+      padding: 0;
       text-align: center;
+      cursor: pointer;
       transition: transform 0.2s;
       user-select: none;
     }
@@ -33,18 +34,18 @@
       transform: scale(1.05);
     }
     .section-image, .channel-logo {
-      width: 100%;
-      aspect-ratio: 1 / 1;
+      width: 160px;
+      height: 240px;
       object-fit: cover;
       border-radius: 10px;
-      margin-bottom: 8px;
-      background: none;
-      padding: 0;
+      border: 1px solid #444;
+      display: block;
+      margin: 0 auto 8px auto;
     }
     .section-title, .channel-name {
       font-weight: bold;
       font-size: 1.1rem;
-      color: #000;
+      color: #fff;
     }
     .channels-container {
       padding: 10px 15px 30px 15px;
@@ -68,15 +69,13 @@
       height: calc(100% - 60px);
       background-color: black;
     }
-    /* شريط الجودات فوق المشغل */
     #qualityButtons {
       position: fixed;
-      top: 0; /* أعلى */
+      top: 0;
       left: 0;
       width: 100%;
       background: rgba(0,0,0,0.7);
       display: flex;
-      flex-wrap: nowrap;
       overflow-x: auto;
       gap: 8px;
       padding: 6px 10px;
@@ -98,7 +97,6 @@
       cursor: pointer;
       font-weight: bold;
       font-size: 14px;
-      user-select: none;
       flex: 0 0 auto;
       transition: background-color 0.3s;
       white-space: nowrap;
@@ -109,11 +107,10 @@
     #qualityButtons button.active {
       background-color: #007bff;
     }
-    /* زر الرجوع أسفل يمين الشاشة */
     #backButton {
       position: fixed;
-      bottom: 15px;  /* تعديل المسافة لتكون أسفل الشاشة */
-      right: 15px;   /* جهة اليمين */
+      bottom: 15px;
+      right: 15px;
       background-color: rgba(0,0,0,0.6);
       color: white;
       border: none;
@@ -133,16 +130,13 @@
 </head>
 <body>
   <div class="container" id="sectionsContainer"></div>
-
   <div id="channelsSection" style="display:none;">
     <div class="channels-container" id="channelsContainer"></div>
   </div>
-
   <div id="playerContainer" style="display:flex;">
     <video id="videoPlayer" controls autoplay></video>
     <div id="qualityButtons" style="display:none;"></div>
   </div>
-
   <button id="backButton" title="الرجوع" style="display:none;">←</button>
 
   <!-- Firebase + HLS -->
@@ -178,7 +172,6 @@
     let currentChannel = null;
     let navigationStack = [];
 
-    // ترتيب الجودات حسب الأولوية (تطابق أسماء الحقول في Firebase)
     const qualityKeys = [
       { key: 'urlMain', label: 'MAIN' },
       { key: 'urlHD', label: 'HD' },
@@ -186,14 +179,12 @@
       { key: 'urlLow', label: 'LOW' }
     ];
 
-    // مؤقت الاختفاء التلقائي
     let hideQualityTimeout;
 
     async function loadSections(parentId = '') {
       sectionsContainer.innerHTML = 'جارٍ التحميل...';
       channelsSection.style.display = 'none';
       playerContainer.style.display = 'none';
-      backButton.style.display = 'none';
 
       try {
         const snapshot = await categoriesRef.once("value");
@@ -216,17 +207,12 @@
             card.onclick = () => {
               navigationStack.push(parentId);
               loadSections(key);
+              backButton.style.display = 'flex';
             };
             sectionsContainer.appendChild(card);
           });
 
           sectionsContainer.style.display = 'grid';
-          channelsSection.style.display = 'none';
-          playerContainer.style.display = 'none';
-
-          if (parentId !== '') {
-            backButton.style.display = 'flex';
-          }
         } else {
           loadChannels(parentId);
         }
@@ -262,7 +248,6 @@
       }
     }
 
-    // تعديل دالة إظهار جميع الجودات الأربعة + الجودات الإضافية مع الحفاظ على ترتيب الجودات
     function getAllQualityLinks(channel) {
       const links = [];
 
@@ -275,13 +260,10 @@
       if (channel.extraLinks) {
         for (const [key, url] of Object.entries(channel.extraLinks)) {
           if (url && url.trim() !== '') {
-            if (!qualityKeys.some(q => q.key.toLowerCase() === ('url' + key).toLowerCase())) {
-              links.push({quality: key, url: url.trim()});
-            }
+            links.push({quality: key, url: url.trim()});
           }
         }
       }
-
       return links;
     }
 
@@ -304,7 +286,6 @@
       setupQualityButtonsAutoHide();
     }
 
-    // عرض أزرار الجودات
     function showQualityButtons(links) {
       qualityButtons.innerHTML = '';
       qualityButtons.style.display = 'flex';
@@ -321,11 +302,9 @@
         qualityButtons.appendChild(btn);
       });
 
-      // تفعيل أول جودة بشكل افتراضي
       setActiveQuality(0, links);
     }
 
-    // تعيين جودة نشطة وتحميلها
     function setActiveQuality(index, links) {
       Array.from(qualityButtons.children).forEach(btn => btn.classList.remove('active'));
       const activeBtn = qualityButtons.children[index];
@@ -334,7 +313,6 @@
       loadStreamWithFallback(links, index);
     }
 
-    // تحميل البث مع المحاولة التلقائية على الجودات الأخرى عند الخطأ
     function loadStreamWithFallback(links, startIndex) {
       if (hls) {
         hls.destroy();
@@ -343,45 +321,29 @@
       videoElement.pause();
       videoElement.src = '';
 
-      if (startIndex >= links.length) {
-        // لم يتم العثور على جودة تعمل
-        return;
-      }
+      if (startIndex >= links.length) return;
 
       const url = links[startIndex].url;
-      if (!url) {
-        loadStreamWithFallback(links, startIndex + 1);
-        return;
-      }
 
       if (Hls.isSupported()) {
         hls = new Hls();
         hls.loadSource(url);
         hls.attachMedia(videoElement);
-        hls.on(Hls.Events.MANIFEST_PARSED, function () {
-          videoElement.play();
-        });
-        hls.on(Hls.Events.ERROR, function(event, data) {
-          if (data.fatal) {
-            // جرب الجودة التالية بدون الخروج
-            loadStreamWithFallback(links, startIndex + 1);
-          }
+        hls.on(Hls.Events.MANIFEST_PARSED, () => videoElement.play());
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          if (data.fatal) loadStreamWithFallback(links, startIndex + 1);
         });
       } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
         videoElement.src = url;
-        videoElement.addEventListener('error', () => {
-          loadStreamWithFallback(links, startIndex + 1);
-        });
+        videoElement.addEventListener('error', () => loadStreamWithFallback(links, startIndex + 1));
         videoElement.play();
       } else {
         alert('مشغل الفيديو غير مدعوم في هذا المتصفح.');
       }
     }
 
-    // مؤقت إخفاء شريط الجودات بعد 3 ثواني من عدم التفاعل
     function setupQualityButtonsAutoHide() {
       resetHideQualityTimeout();
-
       qualityButtons.addEventListener('mousemove', resetHideQualityTimeout);
       qualityButtons.addEventListener('touchstart', resetHideQualityTimeout);
       videoElement.addEventListener('mousemove', resetHideQualityTimeout);
@@ -396,14 +358,10 @@
       }, 3000);
     }
 
-    // زر الرجوع
     backButton.addEventListener('click', () => {
       if (playerContainer.style.display === 'flex') {
         videoElement.pause();
-        if (hls) {
-          hls.destroy();
-          hls = null;
-        }
+        if (hls) hls.destroy();
         playerContainer.style.display = 'none';
         qualityButtons.style.display = 'none';
         channelsSection.style.display = 'block';
@@ -424,7 +382,6 @@
       }
     });
 
-    // تحميل الأقسام الرئيسية عند فتح الصفحة
     window.onload = () => {
       loadSections('');
     };
