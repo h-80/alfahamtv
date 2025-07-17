@@ -12,15 +12,15 @@
       background-color: #000;
       color: #fff;
     }
-    /* الحاويات أصبحت flexbox لعرض الكروت تبدأ من اليمين */
     .container, .channels-container {
       padding: 15px;
       display: flex;
       flex-wrap: wrap;
       gap: 15px;
       direction: rtl;
-      justify-content: flex-start; /* يبدأ من اليمين */
+      justify-content: flex-start;
       align-items: flex-start;
+      text-align: right;
     }
     .section-card, .channel-card {
       background: transparent;
@@ -31,8 +31,8 @@
       user-select: none;
       display: flex;
       flex-direction: column;
-      align-items: center; /* نص في وسط الكرت أفقياً */
-      justify-content: center; /* نص وسط عمودياً */
+      align-items: center;
+      justify-content: center;
       text-align: center;
       width: 110px;
       height: 210px;
@@ -143,7 +143,6 @@
   </div>
   <button id="backButton" title="الرجوع" style="display:none;">←</button>
 
-  <!-- Firebase + HLS -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
@@ -183,8 +182,6 @@
       { key: 'urlLow', label: 'LOW' }
     ];
 
-    let hideQualityTimeout;
-
     async function loadSections(parentId = '') {
       sectionsContainer.innerHTML = 'جارٍ التحميل...';
       channelsSection.style.display = 'none';
@@ -222,33 +219,6 @@
         }
       } catch (err) {
         sectionsContainer.innerHTML = '<p>خطأ في تحميل الأقسام.</p>';
-      }
-    }
-
-    async function loadChannels(categoryId) {
-      sectionsContainer.style.display = 'none';
-      channelsSection.style.display = 'block';
-      channelsContainer.innerHTML = 'جارٍ التحميل...';
-      playerContainer.style.display = 'none';
-      backButton.style.display = 'flex';
-
-      try {
-        const snapshot = await channelsRef.orderByChild('category').equalTo(categoryId).once("value");
-        const channels = snapshot.val();
-        channelsContainer.innerHTML = '';
-        if (!channels) {
-          channelsContainer.innerHTML = '<p>لا توجد قنوات في هذا القسم.</p>';
-          return;
-        }
-        Object.entries(channels).forEach(([key, channel]) => {
-          const card = document.createElement('div');
-          card.className = 'channel-card';
-          card.innerHTML = `<img src="${channel.logo || ''}" class="channel-logo" /><div class="channel-name">${channel.name}</div>`;
-          card.onclick = () => playChannel(channel);
-          channelsContainer.appendChild(card);
-        });
-      } catch (err) {
-        channelsContainer.innerHTML = '<p>خطأ في تحميل القنوات.</p>';
       }
     }
 
@@ -323,7 +293,6 @@
     backButton.onclick = () => {
       qualityButtons.style.display = 'none';
       if (playerContainer.style.display === 'flex') {
-        // إخفاء المشغل والعودة إلى القنوات أو الأقسام
         playerContainer.style.display = 'none';
         if (currentCategoryId) {
           loadChannels(currentCategoryId);
@@ -335,7 +304,12 @@
         const prev = navigationStack.pop();
         if (prev) {
           loadSections(prev);
-          if (navigationStack.length === 0) backButton.style.display = 'none';
+          if (navigationStack.length === 0) {
+            backButton.style.display = 'none';
+          }
+        } else {
+          loadSections();
+          backButton.style.display = 'none';
         }
       } else {
         loadSections();
@@ -343,10 +317,8 @@
       }
     };
 
-    // ابدأ بتحميل الأقسام الرئيسية
     loadSections();
 
-    // عندما ننتقل لتحميل القنوات، خزّن categoryId
     function loadChannels(categoryId) {
       currentCategoryId = categoryId;
       sectionsContainer.style.display = 'none';
