@@ -4,28 +4,38 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>One Sport</title>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo&display=swap" rel="stylesheet" />
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cairo&display=swap');
     body {
       margin: 0;
       font-family: 'Cairo', sans-serif;
       background-color: #000;
       color: #fff;
     }
-    .container {
+    /* الحاويات أصبحت flexbox لعرض الكروت تبدأ من اليمين */
+    .container, .channels-container {
       padding: 15px;
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      display: flex;
+      flex-wrap: wrap;
       gap: 15px;
+      direction: rtl;
+      justify-content: flex-start; /* يبدأ من اليمين */
+      align-items: flex-start;
     }
     .section-card, .channel-card {
       background: transparent;
       border: none;
       padding: 0;
-      text-align: center;
       cursor: pointer;
       transition: transform 0.2s;
       user-select: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center; /* نص في وسط الكرت أفقياً */
+      justify-content: center; /* نص وسط عمودياً */
+      text-align: center;
+      width: 110px;
+      height: 210px;
     }
     .section-card:hover, .channel-card:hover {
       transform: scale(1.05);
@@ -37,18 +47,15 @@
       border-radius: 10px;
       border: 1px solid #444;
       display: block;
-      margin: 0 auto 8px auto;
+      margin-bottom: 8px;
     }
     .section-title, .channel-name {
       font-weight: bold;
       font-size: 1.1rem;
       color: #fff;
-    }
-    .channels-container {
-      padding: 10px 15px 30px 15px;
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 15px;
+      margin: 0;
+      width: 100%;
+      text-align: center;
     }
     #playerContainer {
       display: none;
@@ -122,19 +129,6 @@
       justify-content: center;
       user-select: none;
       box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-    }
-
-    /* Responsive for mobile */
-    @media (max-width: 600px) {
-      .container, .channels-container {
-        grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-        gap: 10px;
-        padding: 10px;
-      }
-      .section-image, .channel-logo {
-        width: 110px;
-        height: 160px;
-      }
     }
   </style>
 </head>
@@ -222,7 +216,7 @@
             sectionsContainer.appendChild(card);
           });
 
-          sectionsContainer.style.display = 'grid';
+          sectionsContainer.style.display = 'flex';
         } else {
           loadChannels(parentId);
         }
@@ -260,141 +254,125 @@
 
     function getAllQualityLinks(channel) {
       const links = [];
-
-      qualityKeys.forEach(q => {
-        if (channel[q.key] && channel[q.key].trim() !== '') {
-          links.push({quality: q.label, url: channel[q.key].trim()});
-        }
+      qualityKeys.forEach(({key, label}) => {
+        if (channel[key]) links.push({label, url: channel[key]});
       });
-
-      if (channel.extraLinks) {
-        for (const [key, url] of Object.entries(channel.extraLinks)) {
-          if (url && url.trim() !== '') {
-            links.push({quality: key, url: url.trim()});
-          }
-        }
-      }
       return links;
     }
 
     function playChannel(channel) {
       currentChannel = channel;
-      const allLinks = getAllQualityLinks(channel);
-      if (allLinks.length === 0) {
-        alert('لا يوجد رابط تشغيل متاح');
-        return;
-      }
-
-      playerContainer.style.display = 'flex';
-      channelsSection.style.display = 'none';
       sectionsContainer.style.display = 'none';
+      channelsSection.style.display = 'none';
+      playerContainer.style.display = 'flex';
       backButton.style.display = 'flex';
 
-      showQualityButtons(allLinks);
-      loadStreamWithFallback(allLinks, 0);
-
-      setupQualityButtonsAutoHide();
-    }
-
-    function showQualityButtons(links) {
-      qualityButtons.innerHTML = '';
-      qualityButtons.style.display = 'flex';
-      qualityButtons.classList.remove('hidden');
-
-      links.forEach((link, index) => {
-        const btn = document.createElement('button');
-        btn.textContent = link.quality;
-        btn.dataset.qualityIndex = index;
-        btn.onclick = () => {
-          setActiveQuality(index, links);
-          resetHideQualityTimeout();
-        };
-        qualityButtons.appendChild(btn);
-      });
-
-      setActiveQuality(0, links);
-    }
-
-    function setActiveQuality(index, links) {
-      Array.from(qualityButtons.children).forEach(btn => btn.classList.remove('active'));
-      const activeBtn = qualityButtons.children[index];
-      if (activeBtn) activeBtn.classList.add('active');
-
-      loadStreamWithFallback(links, index);
-    }
-
-    function loadStreamWithFallback(links, startIndex) {
       if (hls) {
         hls.destroy();
         hls = null;
       }
-      videoElement.pause();
-      videoElement.src = '';
 
-      if (startIndex >= links.length) return;
+      const qualityLinks = getAllQualityLinks(channel);
+      if (qualityLinks.length > 1) {
+        qualityButtons.innerHTML = '';
+        qualityButtons.style.display = 'flex';
+        qualityLinks.forEach(({label, url}, index) => {
+          const btn = document.createElement('button');
+          btn.textContent = label;
+          btn.onclick = () => {
+            loadStream(url, btn);
+          };
+          qualityButtons.appendChild(btn);
+          if (index === 0) btn.classList.add('active');
+        });
+        loadStream(qualityLinks[0].url, qualityButtons.children[0]);
+      } else if (qualityLinks.length === 1) {
+        qualityButtons.style.display = 'none';
+        loadStream(qualityLinks[0].url);
+      } else {
+        alert('لا توجد روابط تشغيل متاحة لهذه القناة.');
+      }
+    }
 
-      const url = links[startIndex].url;
-
+    function loadStream(url, activeBtn = null) {
+      if (hls) {
+        hls.destroy();
+        hls = null;
+      }
+      if (activeBtn) {
+        Array.from(qualityButtons.children).forEach(btn => btn.classList.remove('active'));
+        activeBtn.classList.add('active');
+      }
       if (Hls.isSupported()) {
         hls = new Hls();
         hls.loadSource(url);
         hls.attachMedia(videoElement);
-        hls.on(Hls.Events.MANIFEST_PARSED, () => videoElement.play());
-        hls.on(Hls.Events.ERROR, (event, data) => {
-          if (data.fatal) loadStreamWithFallback(links, startIndex + 1);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          videoElement.play();
         });
       } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
         videoElement.src = url;
-        videoElement.addEventListener('error', () => loadStreamWithFallback(links, startIndex + 1));
-        videoElement.play();
+        videoElement.addEventListener('loadedmetadata', () => {
+          videoElement.play();
+        });
       } else {
-        alert('مشغل الفيديو غير مدعوم في هذا المتصفح.');
+        alert('متصفحك لا يدعم تشغيل الفيديو.');
       }
     }
 
-    function setupQualityButtonsAutoHide() {
-      resetHideQualityTimeout();
-      qualityButtons.addEventListener('mousemove', resetHideQualityTimeout);
-      qualityButtons.addEventListener('touchstart', resetHideQualityTimeout);
-      videoElement.addEventListener('mousemove', resetHideQualityTimeout);
-      videoElement.addEventListener('touchstart', resetHideQualityTimeout);
-    }
-
-    function resetHideQualityTimeout() {
-      qualityButtons.classList.remove('hidden');
-      clearTimeout(hideQualityTimeout);
-      hideQualityTimeout = setTimeout(() => {
-        qualityButtons.classList.add('hidden');
-      }, 3000);
-    }
-
-    backButton.addEventListener('click', () => {
+    backButton.onclick = () => {
+      qualityButtons.style.display = 'none';
       if (playerContainer.style.display === 'flex') {
-        videoElement.pause();
-        if (hls) hls.destroy();
+        // إخفاء المشغل والعودة إلى القنوات أو الأقسام
         playerContainer.style.display = 'none';
-        qualityButtons.style.display = 'none';
-        channelsSection.style.display = 'block';
-      } else if (channelsSection.style.display === 'block') {
-        channelsSection.style.display = 'none';
-        sectionsContainer.style.display = 'grid';
-        if (navigationStack.length > 0) {
-          currentCategoryId = navigationStack.pop();
-          loadSections(currentCategoryId);
+        if (currentCategoryId) {
+          loadChannels(currentCategoryId);
         } else {
-          loadSections('');
+          loadSections();
+          backButton.style.display = 'none';
+        }
+      } else if (navigationStack.length > 0) {
+        const prev = navigationStack.pop();
+        if (prev) {
+          loadSections(prev);
+          if (navigationStack.length === 0) backButton.style.display = 'none';
         }
       } else {
-        if (navigationStack.length > 0) {
-          currentCategoryId = navigationStack.pop();
-          loadSections(currentCategoryId);
-        }
+        loadSections();
+        backButton.style.display = 'none';
       }
-    });
-
-    window.onload = () => {
-      loadSections('');
     };
+
+    // ابدأ بتحميل الأقسام الرئيسية
+    loadSections();
+
+    // عندما ننتقل لتحميل القنوات، خزّن categoryId
+    function loadChannels(categoryId) {
+      currentCategoryId = categoryId;
+      sectionsContainer.style.display = 'none';
+      channelsSection.style.display = 'block';
+      channelsContainer.innerHTML = 'جارٍ التحميل...';
+      playerContainer.style.display = 'none';
+      backButton.style.display = 'flex';
+
+      channelsRef.orderByChild('category').equalTo(categoryId).once("value").then(snapshot => {
+        const channels = snapshot.val();
+        channelsContainer.innerHTML = '';
+        if (!channels) {
+          channelsContainer.innerHTML = '<p>لا توجد قنوات في هذا القسم.</p>';
+          return;
+        }
+        Object.entries(channels).forEach(([key, channel]) => {
+          const card = document.createElement('div');
+          card.className = 'channel-card';
+          card.innerHTML = `<img src="${channel.logo || ''}" class="channel-logo" /><div class="channel-name">${channel.name}</div>`;
+          card.onclick = () => playChannel(channel);
+          channelsContainer.appendChild(card);
+        });
+      }).catch(() => {
+        channelsContainer.innerHTML = '<p>خطأ في تحميل القنوات.</p>';
+      });
+    }
   </script>
 </body>
 </html>
