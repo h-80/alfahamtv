@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>سينما</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cairo&display=swap');
+    body {
+      margin: 0;
+      font-family: 'Cairo', sans-serif;
+      background: url('https://j.top4top.io/p_35842rci70.png') no-repeat center center fixed;
+      background-size: cover;
+      color: #fff;
+      font-size: 0.85rem;
+    }
+    .container, .channels-container {
+      padding: 15px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 15px;
+      direction: rtl;
+      justify-content: start;
+      text-align: center;
+    }
+    .section-card, .channel-card {
+      width: 100px;
+      height: 140px;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: transform 0.2s;
+      user-select: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      text-align: center;
+      box-sizing: border-box;
+    }
+    .section-card:hover, .channel-card:hover {
+      transform: scale(1.05);
+    }
+    .section-image, .channel-logo {
+      width: 100px;
+      height: 100px;
+      object-fit: cover;
+      border-radius: 10px;
+      border: 1px solid #444;
+      display: block;
+      margin-bottom: 5px;
+    }
+    .section-title, .channel-name {
+      font-weight: bold;
+      font-size: 0.8rem;
+      color: #fff;
+      margin: 0;
+      text-align: center;
+      width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #playerContainer {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: black;
+      z-index: 10000;
+      overflow: hidden;
+      flex-direction: column;
+    }
+    #videoPlayer {
+      width: 100%;
+      height: calc(100% - 60px);
+      background-color: black;
+    }
+    #qualityButtons {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      overflow-x: auto;
+      gap: 8px;
+      padding: 6px 10px;
+      box-sizing: border-box;
+      z-index: 10003;
+      transition: opacity 0.5s ease;
+      opacity: 1;
+    }
+    #qualityButtons.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    #qualityButtons button {
+      background-color: rgba(0,0,0,0.6);
+      border: none;
+      color: white;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 14px;
+      flex: 0 0 auto;
+      transition: background-color 0.3s;
+      white-space: nowrap;
+    }
+    #qualityButtons button:hover {
+      background-color: rgba(255,255,255,0.2);
+    }
+    #qualityButtons button.active {
+      background-color: #007bff;
+    }
+    #backButton {
+      position: fixed;
+      bottom: 15px;
+      right: 15px;
+      background-color: rgba(0,0,0,0.6);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      font-size: 24px;
+      cursor: pointer;
+      z-index: 10004;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="sectionsContainer"></div>
+  <div class="channels-container" id="channelsContainer" style="display:none;"></div>
+  
+  <div id="playerContainer">
+    <video id="videoPlayer" controls autoplay></video>
+    <div id="qualityButtons" style="display:none;"></div>
+  </div>
+  <button id="backButton" title="الرجوع" style="display:none;">←</button>
+  
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyARzpeY20p5R1RXGYX_83zQkyLHywp-SE4",
+      authDomain: "one-sport-67e48.firebaseapp.com",
+      databaseURL: "https://one-sport-67e48-default-rtdb.asia-southeast1.firebasedatabase.app/",
+      projectId: "one-sport-67e48",
+      storageBucket: "one-sport-67e48.appspot.com",
+      messagingSenderId: "238395812570",
+      appId: "1:238395812570:web:6361f8ecac34d1061fd3e3"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const categoriesRef = db.ref("categories");
+    const channelsRef = db.ref("channels");
+
+    const sectionsContainer = document.getElementById("sectionsContainer");
+    const channelsContainer = document.getElementById("channelsContainer");
+    const playerContainer = document.getElementById("playerContainer");
+    const videoElement = document.getElementById("videoPlayer");
+    const backButton = document.getElementById("backButton");
+    const qualityButtons = document.getElementById("qualityButtons");
+
+    let hls = null;
+    let currentCategoryId = null;
+
+    async function loadSections(parentId = '') {
+      sectionsContainer.innerHTML = 'جارٍ التحميل...';
+      channelsContainer.style.display = 'none';
+      playerContainer.style.display = 'none';
+
+      const snapshot = await categoriesRef.once("value");
+      const categories = snapshot.val();
+      sectionsContainer.innerHTML = '';
+
+      if (!categories) {
+        sectionsContainer.innerHTML = '<p>لا توجد أقسام.</p>';
+        return;
+      }
+
+      const filteredCategories = Object.entries(categories).filter(([key, category]) => {
+        return (category.parent || '') === parentId;
+      });
+
+      if (filteredCategories.length > 0) {
+        filteredCategories.forEach(([key, category]) => {
+          const card = document.createElement('div');
+          card.className = 'section-card';
+          card.innerHTML = `
+            <img src="${category.image || ''}" class="section-image" />
+            <div class="section-title">${category.name}</div>
+          `;
+          card.onclick = () => loadChannels(key);
+          sectionsContainer.appendChild(card);
+        });
+      } else {
+        loadChannels(parentId);
+      }
+    }
+
+    function loadChannels(categoryId) {
+      currentCategoryId = categoryId;
+      sectionsContainer.style.display = 'none';
+      channelsContainer.style.display = 'grid';
+      playerContainer.style.display = 'none';
+      backButton.style.display = 'flex';
+      channelsContainer.innerHTML = 'جارٍ التحميل...';
+
+      channelsRef.orderByChild('category').equalTo(categoryId).once("value").then(snapshot => {
+        const channels = snapshot.val();
+        channelsContainer.innerHTML = '';
+        if (!channels) {
+          channelsContainer.innerHTML = '<p>لا توجد قنوات في هذا القسم.</p>';
+          return;
+        }
+
+        Object.entries(channels).forEach(([key, channel]) => {
+          const card = document.createElement('div');
+          card.className = 'channel-card';
+          card.innerHTML = `
+            <img src="${channel.logo || ''}" class="channel-logo" />
+            <div class="channel-name">${channel.name}</div>
+          `;
+          card.onclick = () => playChannel(channel);
+          channelsContainer.appendChild(card);
+        });
+      });
+    }
+
+    function playChannel(channel) {
+      sectionsContainer.style.display = 'none';
+      channelsContainer.style.display = 'none';
+      playerContainer.style.display = 'flex';
+      backButton.style.display = 'flex';
+
+      if (hls) hls.destroy();
+      hls = new Hls();
+      hls.loadSource(channel.urlMain);
+      hls.attachMedia(videoElement);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => videoElement.play());
+    }
+
+    backButton.onclick = () => {
+      if (hls) hls.destroy();
+      videoElement.pause();
+      videoElement.removeAttribute('src');
+      videoElement.load();
+
+      if (playerContainer.style.display === 'flex') {
+        playerContainer.style.display = 'none';
+        channelsContainer.style.display = 'grid';
+      } else if (channelsContainer.style.display === 'grid') {
+        channelsContainer.style.display = 'none';
+        sectionsContainer.style.display = 'grid';
+        backButton.style.display = 'none';
+      }
+    };
+
+    loadSections();
+  </script>
+</body>
+</html>
