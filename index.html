@@ -59,14 +59,14 @@
     object-fit: cover;
     border-radius: 10px;
     margin-top: 8px;
-    border: 1px solid #f0f0f0; /* إطار مستوى واحد */
+    border: 1px solid #f0f0f0;
     background: #ffffff;
   }
 
   /* العناوين - حجم نص أكبر */
   .section-title, .channel-name {
     font-weight: 700;
-    font-size: 0.95rem; /* حجم نص أكبر */
+    font-size: 0.95rem;
     color: #000000;
     width: 100%;
     text-align: center;
@@ -146,6 +146,7 @@
     background-color: #007bff;
   }
 
+  /* زر الرجوع - ظاهر كما كان */
   #backButton {
     position: fixed;
     bottom: 15px;
@@ -177,7 +178,7 @@
     padding: 20px 30px;
     border-radius: 10px;
     z-index: 10003;
-    display: none; /* مخفي افتراضياً */
+    display: none;
     text-align: center;
   }
 
@@ -214,7 +215,7 @@
     }
 
     .section-title, .channel-name {
-      font-size: 0.9rem; /* حجم نص أكبر للجوال */
+      font-size: 0.9rem;
       height: 28px;
     }
   }
@@ -235,7 +236,7 @@
     }
 
     .section-title, .channel-name {
-      font-size: 0.85rem; /* حجم نص أكبر للجوال */
+      font-size: 0.85rem;
       height: 26px;
       padding: 6px 3px;
     }
@@ -253,6 +254,8 @@
   <video id="videoPlayer" controls autoplay playsinline webkit-playsinline></video>
   <div id="qualityButtons" style="display:none;"></div>
 </div>
+
+<!-- زر الرجوع - ظاهر كما كان -->
 <button id="backButton" title="الرجوع" style="display:none;">←</button>
 
 <!-- التحميل - مخفي -->
@@ -293,7 +296,8 @@ const loading = document.getElementById("loading");
 
 let hls = null;
 let currentCategoryId = null;
-let currentChannel = null;
+
+// ✅ إصلاح نظام التنقل - تخزين الحالة بشكل صحيح
 let navigationStack = [];
 
 const qualityKeys = [
@@ -303,43 +307,49 @@ const qualityKeys = [
   { key: 'urlLow', label: 'LOW' }
 ];
 
-// دوال المساعدة
-function showLoading() {
-  // loading.style.display = 'block'; // ❌ مخفي تماماً
-}
-
-function hideLoading() {
-  loading.style.display = 'none';
-}
-
 // تحميل الأقسام من Firebase
 async function loadSections(parentId = '') {
-  // ❌ لا تظهر جملة التحميل
   sectionsContainer.innerHTML = '';
+  channelsContainer.style.display = 'none';
+  playerContainer.style.display = 'none';
   
+  // ✅ إصلاح: إخفاء زر الرجوع فقط في الصفحة الرئيسية
+  if (parentId === '') {
+    backButton.style.display = 'none';
+    navigationStack = []; // مسح التاريخ عند الصفحة الرئيسية
+  } else {
+    backButton.style.display = 'flex';
+  }
+
   try {
     const snapshot = await db.ref('categories').once("value");
     const categories = snapshot.val() || {};
-    
-    sectionsContainer.innerHTML = '';
-    channelsContainer.style.display = 'none';
-    playerContainer.style.display = 'none';
 
     const filteredCategories = Object.entries(categories)
       .filter(([key, cat]) => (cat.parent || '') === parentId);
 
     if (filteredCategories.length > 0) {
       filteredCategories.forEach(([key, cat]) => {
-        const card = createCard(cat.image, cat.name, () => {
-          navigationStack.push(parentId);
+        const card = document.createElement('div');
+        card.className = 'section-card';
+        card.innerHTML = `<img src="${cat.image || ''}" class="section-image"/><div class="section-title">${cat.name}</div>`;
+        card.onclick = () => {
+          // ✅ إصلاح: حفظ الحالة قبل الذهاب للقنوات
+          navigationStack.push({
+            type: 'sections',
+            parentId: parentId
+          });
           loadChannels(key);
-          backButton.style.display = 'flex';
-        });
+        };
         sectionsContainer.appendChild(card);
       });
-
       sectionsContainer.style.display = 'grid';
     } else {
+      // ✅ إصلاح: حفظ الحالة قبل الذهاب للقنوات مباشرة
+      navigationStack.push({
+        type: 'sections',
+        parentId: parentId
+      });
       loadChannels(parentId);
     }
   } catch (error) {
@@ -349,10 +359,11 @@ async function loadSections(parentId = '') {
 
 // تحميل القنوات من Firebase
 async function loadChannels(categoryId) {
-  // ❌ لا تظهر جملة التحميل
   currentCategoryId = categoryId;
   sectionsContainer.style.display = 'none';
   channelsContainer.style.display = 'grid';
+  playerContainer.style.display = 'none';
+  backButton.style.display = 'flex';
   channelsContainer.innerHTML = '';
 
   try {
@@ -369,7 +380,18 @@ async function loadChannels(categoryId) {
     }
 
     Object.entries(channels).forEach(([key, channel]) => {
-      const card = createCard(channel.logo, channel.name, () => playChannel(channel));
+      const card = document.createElement('div');
+      card.className = 'channel-card';
+      card.innerHTML = `<img src="${channel.logo || ''}" class="channel-logo"/><div class="channel-name">${channel.name}</div>`;
+      card.onclick = () => {
+        // ✅ إصلاح: حفظ الحالة قبل الذهاب للمشغل
+        navigationStack.push({
+          type: 'channels',
+          categoryId: categoryId,
+          parentId: getCurrentParentId()
+        });
+        playChannel(channel);
+      };
       channelsContainer.appendChild(card);
     });
   } catch (error) {
@@ -377,42 +399,22 @@ async function loadChannels(categoryId) {
   }
 }
 
-// إنشاء كرت
-function createCard(image, title, onClick) {
-  const card = document.createElement('div');
-  card.className = image ? 'channel-card' : 'section-card';
-  card.innerHTML = `
-    <img src="${image || ''}" class="${image ? 'channel-logo' : 'section-image'}" 
-         onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTQwIiBoZWlnaHQ9IjE0MCIgdmlld0JveD0iMCAwIDE0MCAxNDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNDAiIGhlaWdodD0iMTQwIiBmaWxsPSIjRjBGMEYwIi8+CjxwYXRoIGQ9Ik03MCA0MEM2Mi4yODQzIDQwIDU2IDQ2LjI4NDMgNTYgNTRDNTYgNjEuNzE1NyA2Mi4yODQzIDY4IDcwIDY4Qzc3LjcxNTcgNjggODQgNjEuNzE1NyA4NCA1NEM4NCA0Ni4yODQzIDc3LjcxNTcgNDAgNzAgNDBaTTcwIDk0QzUxLjY3IDk0IDM2IDk2LjY3IDM2IDEwNFYxMTBIMTA0VjEwNEMxMDQgOTYuNjcgODguMzMgOTQgNzAgOTRaIiBmaWxsPSIjQ0RDRENEIi8+Cjwvc3ZnPgo='"/>
-    <div class="${image ? 'channel-name' : 'section-title'}">${title}</div>
-  `;
-  card.onclick = onClick;
-  return card;
-}
-
-// ✅ المشغل الجديد - نفس الكود حرفياً من الذي أرسلته
-function getAllQualityLinks(channel) {
-  const links = [];
-  qualityKeys.forEach(({key, label}) => {
-    if (channel[key]) links.push({label, url: channel[key]});
-  });
-  
-  // الروابط الإضافية من Firebase
-  if (channel.extraLinks) {
-    Object.entries(channel.extraLinks).forEach(([name, url]) => {
-      if (name && url) links.push({label: name, url});
-    });
+// ✅ دالة مساعدة للحصول على parentId الحالي
+function getCurrentParentId() {
+  if (navigationStack.length > 0) {
+    const lastState = navigationStack[navigationStack.length - 1];
+    return lastState.parentId || '';
   }
-  
-  return links;
+  return '';
 }
 
+// تشغيل القناة
 function playChannel(channel) {
-  currentChannel = channel;
   sectionsContainer.style.display = 'none';
   channelsContainer.style.display = 'none';
   playerContainer.style.display = 'flex';
   backButton.style.display = 'flex';
+  qualityButtons.innerHTML = '';
 
   if (hls) {
     hls.destroy();
@@ -441,6 +443,21 @@ function playChannel(channel) {
   }
 }
 
+function getAllQualityLinks(channel) {
+  const links = [];
+  qualityKeys.forEach(({key, label}) => {
+    if (channel[key]) links.push({label, url: channel[key]});
+  });
+  
+  if (channel.extraLinks) {
+    Object.entries(channel.extraLinks).forEach(([name, url]) => {
+      if (name && url) links.push({label: name, url});
+    });
+  }
+  
+  return links;
+}
+
 function loadStream(url, activeBtn = null) {
   if (hls) {
     hls.destroy();
@@ -451,36 +468,24 @@ function loadStream(url, activeBtn = null) {
     activeBtn.classList.add('active');
   }
   
-  // ❌ لا تظهر جملة التحميل عند تشغيل الفيديو أيضاً
-  // showLoading();
-  
   if (Hls.isSupported()) {
     hls = new Hls();
     hls.loadSource(url);
     hls.attachMedia(videoElement);
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
       videoElement.play();
-      // hideLoading();
-    });
-    hls.on(Hls.Events.ERROR, () => {
-      // hideLoading();
     });
   } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
     videoElement.src = url;
     videoElement.addEventListener('loadedmetadata', () => {
       videoElement.play();
-      // hideLoading();
-    });
-    videoElement.addEventListener('error', () => {
-      // hideLoading();
     });
   } else {
-    // hideLoading();
     alert('متصفحك لا يدعم تشغيل الفيديو.');
   }
 }
 
-// ✅ زر الرجوع - نفس الكود حرفياً
+// ✅ إصلاح زر الرجوع - نظام تنقل صحيح
 backButton.onclick = () => {
   if (hls) {
     hls.destroy();
@@ -489,31 +494,27 @@ backButton.onclick = () => {
   videoElement.pause();
   videoElement.removeAttribute('src');
   videoElement.load();
-
   qualityButtons.style.display = 'none';
 
-  if (playerContainer.style.display === 'flex') {
-    playerContainer.style.display = 'none';
-    if (currentCategoryId) {
-      loadChannels(currentCategoryId);
-    } else {
-      loadSections();
-      backButton.style.display = 'none';
-    }
-  } else if (navigationStack.length > 0) {
-    const prev = navigationStack.pop();
-    if (prev) {
-      loadSections(prev);
-      if (navigationStack.length === 0) {
-        backButton.style.display = 'none';
-      }
-    } else {
-      loadSections();
-      backButton.style.display = 'none';
-    }
-  } else {
+  if (navigationStack.length === 0) {
+    // إذا لم يكن هناك تاريخ، نرجع للصفحة الرئيسية
     loadSections();
     backButton.style.display = 'none';
+    return;
+  }
+
+  const previousState = navigationStack.pop();
+  
+  switch (previousState.type) {
+    case 'channels':
+      // الرجوع من المشغل إلى القنوات
+      loadChannels(previousState.categoryId);
+      break;
+      
+    case 'sections':
+      // الرجوع من القنوات إلى الأقسام
+      loadSections(previousState.parentId);
+      break;
   }
 };
 
