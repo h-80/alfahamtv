@@ -38,32 +38,15 @@
   #qualityButtons { position:fixed; top:0; left:0; width:100%; background:rgba(0,0,0,0.7); display:flex; overflow-x:auto; gap:8px; padding:6px 10px; z-index:10003; }
   #qualityButtons button { background:rgba(0,0,0,0.6); color:#fff; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-weight:bold; white-space:nowrap; }
   #qualityButtons button.active { background:#007bff; }
-  #qualityButtons button.external { background:#28a745; }
   #backButton { position:fixed; bottom:15px; right:15px; background:rgba(0,0,0,0.6); color:white; border:none; border-radius:50%; width:40px; height:40px; font-size:24px; cursor:pointer; z-index:10004; display:flex; align-items:center; justify-content:center; }
-  .loading { text-align: center; padding: 20px; font-size: 1.2rem; }
-  .app-creator-notice { 
-    background: #ff9800; 
-    color: black; 
-    padding: 10px; 
-    text-align: center; 
-    margin: 10px;
-    border-radius: 5px;
-    display: none;
-  }
 </style>
 </head>
 <body>
-<div class="app-creator-notice" id="appCreatorNotice">يعمل الآن في App Creator 24</div>
 <div class="container" id="sectionsContainer"></div>
 <div class="channels-container" id="channelsContainer" style="display:none;"></div>
 
 <div id="playerContainer">
-  <video id="videoPlayer" 
-         controls 
-         autoplay 
-         playsinline 
-         webkit-playsinline 
-         crossorigin="anonymous"></video>
+  <video id="videoPlayer" controls autoplay playsinline webkit-playsinline></video>
   <div id="qualityButtons"></div>
 </div>
 <button id="backButton" style="display:none;">←</button>
@@ -91,22 +74,12 @@ const playerContainer = document.getElementById("playerContainer");
 const videoElement = document.getElementById("videoPlayer");
 const backButton = document.getElementById("backButton");
 const qualityButtons = document.getElementById("qualityButtons");
-const appCreatorNotice = document.getElementById("appCreatorNotice");
 
 let hls = null;
 let currentCategoryId = null;
 
-// كشف App Creator 24 بشكل دقيق
-const isAppCreator = /AppCreator|WebView|Android|iPhone|iPad/i.test(navigator.userAgent) || 
-                    window.AppCreator !== undefined;
-
-if (isAppCreator) {
-  appCreatorNotice.style.display = 'block';
-  console.log('يعمل في App Creator 24 - تم تفعيل التحسينات');
-}
-
 async function loadSections(parentId = '') {
-  sectionsContainer.innerHTML = '<div class="loading">جارٍ التحميل...</div>';
+  sectionsContainer.innerHTML = 'جارٍ التحميل...';
   channelsContainer.style.display = 'none';
   playerContainer.style.display = 'none';
 
@@ -120,7 +93,7 @@ async function loadSections(parentId = '') {
     filteredCategories.forEach(([key, cat])=>{
       const card = document.createElement('div');
       card.className='section-card';
-      card.innerHTML=`<img src="${cat.image||''}" class="section-image" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiBmaWxsPSIjMzMzIi8+Cjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5vIEltYWdlPC90ZXh0Pgo8L3N2Zz4K'"/><div class="section-title">${cat.name}</div>`;
+      card.innerHTML=`<img src="${cat.image||''}" class="section-image"/><div class="section-title">${cat.name}</div>`;
       card.onclick=()=>loadChannels(key);
       sectionsContainer.appendChild(card);
     });
@@ -135,19 +108,19 @@ function loadChannels(categoryId){
   channelsContainer.style.display='grid';
   playerContainer.style.display='none';
   backButton.style.display='flex';
-  channelsContainer.innerHTML='<div class="loading">جارٍ تحميل القنوات...</div>';
+  channelsContainer.innerHTML='جارٍ التحميل...';
 
   db.ref('channels').orderByChild('category').equalTo(categoryId).once("value").then(snapshot=>{
     const channels = snapshot.val() || {};
     channelsContainer.innerHTML='';
     if(Object.keys(channels).length===0){
-      channelsContainer.innerHTML='<div class="loading">لا توجد قنوات في هذا القسم.</div>';
+      channelsContainer.innerHTML='<p>لا توجد قنوات في هذا القسم.</p>';
       return;
     }
     Object.entries(channels).forEach(([key,ch])=>{
       const card=document.createElement('div');
       card.className='channel-card';
-      card.innerHTML=`<img src="${ch.logo||''}" class="channel-logo" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiBmaWxsPSIjMzMzIi8+Cjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjEyIiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5vIExvZ288L3RleHQ+Cjwvc3ZnPgo='"/><div class="channel-name">${ch.name}</div>`;
+      card.innerHTML=`<img src="${ch.logo||''}" class="channel-logo"/><div class="channel-name">${ch.name}</div>`;
       card.onclick=()=>playChannel(ch);
       channelsContainer.appendChild(card);
     });
@@ -155,6 +128,12 @@ function loadChannels(categoryId){
 }
 
 function playChannel(channel){
+  sectionsContainer.style.display='none';
+  channelsContainer.style.display='none';
+  playerContainer.style.display='flex';
+  backButton.style.display='flex';
+  qualityButtons.innerHTML='';
+
   // جمع كل الروابط
   const urls = [];
   if(channel.urlMain) urls.push({name:'Main', url:channel.urlMain});
@@ -167,41 +146,6 @@ function playChannel(channel){
     });
   }
 
-  // خاصية App Creator: استخدام AppCreator.openVideo إذا كان متاحاً
-  if (isAppCreator && typeof AppCreator !== 'undefined' && AppCreator.openVideo) {
-    try {
-      AppCreator.openVideo(urls[0].url);
-      return;
-    } catch (e) {
-      console.log('AppCreator video failed, using web player');
-    }
-  }
-
-  // خاصية App Creator: استخدام window.AppCreator إذا كان متاحاً
-  if (isAppCreator && window.AppCreator && window.AppCreator.openLink) {
-    try {
-      window.AppCreator.openLink(urls[0].url);
-      return;
-    } catch (e) {
-      console.log('AppCreator openLink failed, using web player');
-    }
-  }
-
-  // المشغل العادي المدمج
-  sectionsContainer.style.display='none';
-  channelsContainer.style.display='none';
-  playerContainer.style.display='flex';
-  backButton.style.display='flex';
-  qualityButtons.innerHTML='';
-
-  // إعدادات خاصة لـ App Creator
-  if(isAppCreator) {
-    videoElement.setAttribute('playsinline', 'true');
-    videoElement.setAttribute('webkit-playsinline', 'true');
-    videoElement.setAttribute('crossorigin', 'anonymous');
-    videoElement.setAttribute('controlslist', 'nodownload');
-  }
-
   urls.forEach((q,index)=>{
     const btn=document.createElement('button');
     btn.textContent=q.name;
@@ -210,44 +154,16 @@ function playChannel(channel){
       
       if(q.url.endsWith('.m3u8') && Hls.isSupported()){
         hls=new Hls({
-          enableWorker: false, // مهم لـ App Creator
+          enableWorker: false,
           lowLatencyMode: true,
-          backBufferLength: 90,
-          maxBufferLength: 30,
-          maxMaxBufferLength: 60
+          backBufferLength: 90
         });
         hls.loadSource(q.url);
         hls.attachMedia(videoElement);
-        hls.on(Hls.Events.MANIFEST_PARSED,()=>{
-          videoElement.play().catch(e=>{
-            console.log('Auto-play prevented in App Creator:', e);
-            videoElement.controls = true;
-          });
-        });
-        hls.on(Hls.Events.ERROR, (event, data) => {
-          if (data.fatal) {
-            switch(data.type) {
-              case Hls.ErrorTypes.NETWORK_ERROR:
-                console.log('خطأ شبكة في App Creator، جرب الرابط المباشر');
-                videoElement.src = q.url;
-                videoElement.play().catch(e => console.log('Play failed:', e));
-                break;
-              case Hls.ErrorTypes.MEDIA_ERROR:
-                hls.recoverMediaError();
-                break;
-              default:
-                console.log('خطأ غير معروف في HLS - App Creator');
-                break;
-            }
-          }
-        });
+        hls.on(Hls.Events.MANIFEST_PARSED,()=>videoElement.play());
       }else{
-        // للتشغيل المباشر في App Creator
         videoElement.src=q.url;
-        videoElement.play().catch(e=>{
-          console.log('Auto-play prevented in App Creator:', e);
-          videoElement.controls = true;
-        });
+        videoElement.play();
       }
       Array.from(qualityButtons.children).forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
@@ -256,63 +172,30 @@ function playChannel(channel){
     qualityButtons.appendChild(btn);
   });
 
-  // زر فتح في مشغل خارجي (مهم لـ App Creator)
-  if (urls.length > 0) {
-    const externalBtn = document.createElement('button');
-    externalBtn.textContent = 'فتح في مشغل خارجي';
-    externalBtn.className = 'external';
-    externalBtn.onclick = () => {
-      const firstUrl = urls[0].url;
-      // محاولة استخدام خاصية App Creator لفتح الرابط
-      if (isAppCreator && window.AppCreator && window.AppCreator.openLink) {
-        window.AppCreator.openLink(firstUrl);
-      } else {
-        window.open(firstUrl, '_blank');
-      }
-    };
-    qualityButtons.appendChild(externalBtn);
-  }
-
   // تشغيل أول رابط تلقائيًا
-  if(urls.length > 0){
-    const first = urls[0];
-    if(first.url.endsWith('.m3u8') && Hls.isSupported()){
-      hls=new Hls({
-        enableWorker: false,
-        lowLatencyMode: true,
-        backBufferLength: 90
-      });
-      hls.loadSource(first.url);
-      hls.attachMedia(videoElement);
-      hls.on(Hls.Events.MANIFEST_PARSED,()=>{
-        videoElement.play().catch(e=>{
-          console.log('Auto-play prevented in App Creator:', e);
-          videoElement.controls = true;
-        });
-      });
-    }else{
-      videoElement.src=first.url;
-      videoElement.play().catch(e=>{
-        console.log('Auto-play prevented in App Creator:', e);
-        videoElement.controls = true;
-      });
-    }
+  const first = urls[0];
+  if(first.url.endsWith('.m3u8') && Hls.isSupported()){
+    hls=new Hls({
+      enableWorker: false,
+      lowLatencyMode: true
+    });
+    hls.loadSource(first.url);
+    hls.attachMedia(videoElement);
+    hls.on(Hls.Events.MANIFEST_PARSED,()=>videoElement.play());
+  }else{
+    videoElement.src=first.url;
+    videoElement.play();
   }
 }
 
 backButton.onclick=()=>{
-  if(hls) {
-    hls.destroy();
-    hls = null;
-  }
+  if(hls) hls.destroy();
   videoElement.pause();
   videoElement.removeAttribute('src');
   videoElement.load();
-  
   if(playerContainer.style.display==='flex'){
     playerContainer.style.display='none';
     channelsContainer.style.display='grid';
-    backButton.style.display='flex';
   }else if(channelsContainer.style.display==='grid'){
     channelsContainer.style.display='none';
     sectionsContainer.style.display='grid';
@@ -320,25 +203,6 @@ backButton.onclick=()=>{
   }
 };
 
-// تحسينات خاصة لـ App Creator 24
-if (isAppCreator) {
-  document.addEventListener('DOMContentLoaded', function() {
-    console.log('App Creator 24 - تم تحميل التطبيق مع تحسينات التشغيل');
-    
-    // إضافة تحكم في حجم الذاكرة
-    if ('deviceMemory' in navigator) {
-      console.log('ذاكرة الجهاز:', navigator.deviceMemory + 'GB');
-    }
-    
-    // تحسين الأداء للشبكات البطيئة
-    if ('connection' in navigator) {
-      const connection = navigator.connection;
-      console.log('نوع الاتصال:', connection.effectiveType);
-    }
-  });
-}
-
-// تحميل الأقسام عند بدء التشغيل
 loadSections();
 </script>
 </body>
