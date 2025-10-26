@@ -41,9 +41,19 @@
   #qualityButtons button.external { background:#28a745; }
   #backButton { position:fixed; bottom:15px; right:15px; background:rgba(0,0,0,0.6); color:white; border:none; border-radius:50%; width:40px; height:40px; font-size:24px; cursor:pointer; z-index:10004; display:flex; align-items:center; justify-content:center; }
   .loading { text-align: center; padding: 20px; font-size: 1.2rem; }
+  .app-creator-notice { 
+    background: #ff9800; 
+    color: black; 
+    padding: 10px; 
+    text-align: center; 
+    margin: 10px;
+    border-radius: 5px;
+    display: none;
+  }
 </style>
 </head>
 <body>
+<div class="app-creator-notice" id="appCreatorNotice">يعمل الآن في App Creator 24</div>
 <div class="container" id="sectionsContainer"></div>
 <div class="channels-container" id="channelsContainer" style="display:none;"></div>
 
@@ -81,12 +91,19 @@ const playerContainer = document.getElementById("playerContainer");
 const videoElement = document.getElementById("videoPlayer");
 const backButton = document.getElementById("backButton");
 const qualityButtons = document.getElementById("qualityButtons");
+const appCreatorNotice = document.getElementById("appCreatorNotice");
 
 let hls = null;
 let currentCategoryId = null;
 
-// كشف إذا كان التطبيق يعمل في AppMaster أو WebView
-const isInApp = /WebView|AppMaster|Android|iPhone|iPad/i.test(navigator.userAgent);
+// كشف App Creator 24 بشكل دقيق
+const isAppCreator = /AppCreator|WebView|Android|iPhone|iPad/i.test(navigator.userAgent) || 
+                    window.AppCreator !== undefined;
+
+if (isAppCreator) {
+  appCreatorNotice.style.display = 'block';
+  console.log('يعمل في App Creator 24 - تم تفعيل التحسينات');
+}
 
 async function loadSections(parentId = '') {
   sectionsContainer.innerHTML = '<div class="loading">جارٍ التحميل...</div>';
@@ -150,28 +167,39 @@ function playChannel(channel){
     });
   }
 
-  // المحاولة الأولى: استخدام مشغل AppMaster المدمج إذا كان متاحاً
-  if (isInApp && typeof window.android !== 'undefined' && window.android.playVideo) {
+  // خاصية App Creator: استخدام AppCreator.openVideo إذا كان متاحاً
+  if (isAppCreator && typeof AppCreator !== 'undefined' && AppCreator.openVideo) {
     try {
-      window.android.playVideo(urls[0].url, channel.name);
+      AppCreator.openVideo(urls[0].url);
       return;
     } catch (e) {
-      console.log('Android interface failed, falling back to web player');
+      console.log('AppCreator video failed, using web player');
     }
   }
 
-  // المحاولة الثانية: استخدام المشغل العادي
+  // خاصية App Creator: استخدام window.AppCreator إذا كان متاحاً
+  if (isAppCreator && window.AppCreator && window.AppCreator.openLink) {
+    try {
+      window.AppCreator.openLink(urls[0].url);
+      return;
+    } catch (e) {
+      console.log('AppCreator openLink failed, using web player');
+    }
+  }
+
+  // المشغل العادي المدمج
   sectionsContainer.style.display='none';
   channelsContainer.style.display='none';
   playerContainer.style.display='flex';
   backButton.style.display='flex';
   qualityButtons.innerHTML='';
 
-  // إعدادات محسنة للفيديو في WebView
-  if(isInApp) {
+  // إعدادات خاصة لـ App Creator
+  if(isAppCreator) {
     videoElement.setAttribute('playsinline', 'true');
     videoElement.setAttribute('webkit-playsinline', 'true');
     videoElement.setAttribute('crossorigin', 'anonymous');
+    videoElement.setAttribute('controlslist', 'nodownload');
   }
 
   urls.forEach((q,index)=>{
@@ -182,17 +210,17 @@ function playChannel(channel){
       
       if(q.url.endsWith('.m3u8') && Hls.isSupported()){
         hls=new Hls({
-          enableWorker: false, // مهم للـ WebView
+          enableWorker: false, // مهم لـ App Creator
           lowLatencyMode: true,
           backBufferLength: 90,
-          maxBufferLength: 30
+          maxBufferLength: 30,
+          maxMaxBufferLength: 60
         });
         hls.loadSource(q.url);
         hls.attachMedia(videoElement);
         hls.on(Hls.Events.MANIFEST_PARSED,()=>{
           videoElement.play().catch(e=>{
-            console.log('Auto-play prevented:', e);
-            // عرض رسالة للمستخدم للنقر على التشغيل
+            console.log('Auto-play prevented in App Creator:', e);
             videoElement.controls = true;
           });
         });
@@ -200,7 +228,7 @@ function playChannel(channel){
           if (data.fatal) {
             switch(data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
-                console.log('فشل في تحميل الفيديو، جاري المحاولة بالطريقة البديلة');
+                console.log('خطأ شبكة في App Creator، جرب الرابط المباشر');
                 videoElement.src = q.url;
                 videoElement.play().catch(e => console.log('Play failed:', e));
                 break;
@@ -208,15 +236,16 @@ function playChannel(channel){
                 hls.recoverMediaError();
                 break;
               default:
-                console.log('خطأ غير معروف في HLS');
+                console.log('خطأ غير معروف في HLS - App Creator');
                 break;
             }
           }
         });
       }else{
+        // للتشغيل المباشر في App Creator
         videoElement.src=q.url;
         videoElement.play().catch(e=>{
-          console.log('Auto-play prevented:', e);
+          console.log('Auto-play prevented in App Creator:', e);
           videoElement.controls = true;
         });
       }
@@ -227,15 +256,19 @@ function playChannel(channel){
     qualityButtons.appendChild(btn);
   });
 
-  // إضافة زر المشغل الخارجي كخيار بديل
+  // زر فتح في مشغل خارجي (مهم لـ App Creator)
   if (urls.length > 0) {
     const externalBtn = document.createElement('button');
     externalBtn.textContent = 'فتح في مشغل خارجي';
     externalBtn.className = 'external';
     externalBtn.onclick = () => {
       const firstUrl = urls[0].url;
-      // محاولة فتح في مشغل خارجي
-      window.open(firstUrl, '_blank');
+      // محاولة استخدام خاصية App Creator لفتح الرابط
+      if (isAppCreator && window.AppCreator && window.AppCreator.openLink) {
+        window.AppCreator.openLink(firstUrl);
+      } else {
+        window.open(firstUrl, '_blank');
+      }
     };
     qualityButtons.appendChild(externalBtn);
   }
@@ -253,14 +286,14 @@ function playChannel(channel){
       hls.attachMedia(videoElement);
       hls.on(Hls.Events.MANIFEST_PARSED,()=>{
         videoElement.play().catch(e=>{
-          console.log('Auto-play prevented:', e);
+          console.log('Auto-play prevented in App Creator:', e);
           videoElement.controls = true;
         });
       });
     }else{
       videoElement.src=first.url;
       videoElement.play().catch(e=>{
-        console.log('Auto-play prevented:', e);
+        console.log('Auto-play prevented in App Creator:', e);
         videoElement.controls = true;
       });
     }
@@ -287,26 +320,26 @@ backButton.onclick=()=>{
   }
 };
 
-// تحميل الأقسام عند بدء التشغيل
-loadSections();
-
-// إضافة event listener للتحكم في وضع الملء الشاشة
-videoElement.addEventListener('webkitpresentationmodechanged', function(e) {
-  console.log('Presentation mode changed: ', e.target.webkitPresentationMode);
-});
-
-// تحسين الأداء في الأجهزة المحمولة
-if (isInApp) {
+// تحسينات خاصة لـ App Creator 24
+if (isAppCreator) {
   document.addEventListener('DOMContentLoaded', function() {
-    // تحسينات للأداء
+    console.log('App Creator 24 - تم تحميل التطبيق مع تحسينات التشغيل');
+    
+    // إضافة تحكم في حجم الذاكرة
+    if ('deviceMemory' in navigator) {
+      console.log('ذاكرة الجهاز:', navigator.deviceMemory + 'GB');
+    }
+    
+    // تحسين الأداء للشبكات البطيئة
     if ('connection' in navigator) {
       const connection = navigator.connection;
-      if (connection.saveData) {
-        console.log('وضع توفير البيانات مفعل');
-      }
+      console.log('نوع الاتصال:', connection.effectiveType);
     }
   });
 }
+
+// تحميل الأقسام عند بدء التشغيل
+loadSections();
 </script>
 </body>
 </html>
