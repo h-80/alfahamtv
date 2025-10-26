@@ -22,7 +22,6 @@
     min-height: 100vh;
   }
   
-  /* الحاويات الرئيسية */
   .container, .channels-container {
     padding: 10px;
     display: grid;
@@ -31,7 +30,6 @@
     direction: rtl;
   }
   
-  /* كروت الأقسام والقنوات */
   .section-card, .channel-card {
     background: #ffffff;
     border-radius: 12px;
@@ -52,7 +50,6 @@
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
   }
 
-  /* الصور مع إطار مستوى واحد */
   .section-image, .channel-logo {
     width: 140px;
     height: 140px;
@@ -63,7 +60,6 @@
     background: #ffffff;
   }
 
-  /* العناوين - حجم نص أكبر */
   .section-title, .channel-name {
     font-weight: 700;
     font-size: 0.95rem;
@@ -83,7 +79,7 @@
     justify-content: center;
   }
 
-  /* المشغل - نفس التصميم حرفياً من الكود الذي أرسلته */
+  /* المشغل - نفس التصميم الأصلي */
   #playerContainer {
     display: none;
     position: fixed;
@@ -103,6 +99,7 @@
     background-color: black;
   }
 
+  /* أزرار الجودة - بدون خلفية سوداء */
   #qualityButtons {
     position: fixed;
     top: 0;
@@ -146,7 +143,16 @@
     background-color: #007bff;
   }
 
-  /* زر الرجوع - ظاهر كما كان */
+  /* زر المشغل الخارجي */
+  #qualityButtons button.external-player {
+    background-color: #28a745;
+  }
+
+  #qualityButtons button.external-player:hover {
+    background-color: #218838;
+  }
+
+  /* زر الرجوع */
   #backButton {
     position: fixed;
     bottom: 15px;
@@ -167,7 +173,7 @@
     box-shadow: 0 2px 5px rgba(0,0,0,0.3);
   }
 
-  /* التحميل - مخفي */
+  /* التحميل */
   #loading {
     position: fixed;
     top: 50%;
@@ -197,49 +203,24 @@
     100% { transform: rotate(360deg); }
   }
 
-  /* التجاوب */
   @media (max-width: 768px) {
     .container, .channels-container {
       grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
       gap: 10px;
       padding: 8px;
     }
-
-    .section-card, .channel-card {
-      height: 180px;
-    }
-
-    .section-image, .channel-logo {
-      width: 120px;
-      height: 120px;
-    }
-
-    .section-title, .channel-name {
-      font-size: 0.9rem;
-      height: 28px;
-    }
+    .section-card, .channel-card { height: 180px; }
+    .section-image, .channel-logo { width: 120px; height: 120px; }
+    .section-title, .channel-name { font-size: 0.9rem; height: 28px; }
   }
 
   @media (max-width: 480px) {
     .container, .channels-container {
-      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-      gap: 8px;
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px;
     }
-
-    .section-card, .channel-card {
-      height: 160px;
-    }
-
-    .section-image, .channel-logo {
-      width: 100px;
-      height: 100px;
-    }
-
-    .section-title, .channel-name {
-      font-size: 0.85rem;
-      height: 26px;
-      padding: 6px 3px;
-    }
+    .section-card, .channel-card { height: 160px; }
+    .section-image, .channel-logo { width: 100px; height: 100px; }
+    .section-title, .channel-name { font-size: 0.85rem; height: 26px; padding: 6px 3px; }
   }
 </style>
 </head>
@@ -249,16 +230,16 @@
 <div class="container" id="sectionsContainer"></div>
 <div class="channels-container" id="channelsContainer" style="display:none;"></div>
 
-<!-- المشغل - نفس التصميم حرفياً -->
+<!-- المشغل - نفس التصميم الأصلي -->
 <div id="playerContainer">
   <video id="videoPlayer" controls autoplay playsinline webkit-playsinline></video>
   <div id="qualityButtons" style="display:none;"></div>
 </div>
 
-<!-- زر الرجوع - ظاهر كما كان -->
+<!-- زر الرجوع -->
 <button id="backButton" title="الرجوع" style="display:none;">←</button>
 
-<!-- التحميل - مخفي -->
+<!-- التحميل -->
 <div id="loading">
   <div class="loading-spinner"></div>
   <div>جاري التحميل...</div>
@@ -325,6 +306,7 @@ async function loadSections(parentId = '') {
     const snapshot = await db.ref('categories').once("value");
     const categories = snapshot.val() || {};
 
+    // ✅ إصلاح: تصفية الأقسام بشكل صحيح لمنع التكرار
     const filteredCategories = Object.entries(categories)
       .filter(([key, cat]) => (cat.parent || '') === parentId);
 
@@ -337,7 +319,8 @@ async function loadSections(parentId = '') {
           // ✅ إصلاح: حفظ الحالة قبل الذهاب للقنوات
           navigationStack.push({
             type: 'sections',
-            parentId: parentId
+            parentId: parentId,
+            categoryId: key
           });
           loadChannels(key);
         };
@@ -348,7 +331,8 @@ async function loadSections(parentId = '') {
       // ✅ إصلاح: حفظ الحالة قبل الذهاب للقنوات مباشرة
       navigationStack.push({
         type: 'sections',
-        parentId: parentId
+        parentId: parentId,
+        categoryId: parentId
       });
       loadChannels(parentId);
     }
@@ -390,7 +374,14 @@ async function loadChannels(categoryId) {
           categoryId: categoryId,
           parentId: getCurrentParentId()
         });
-        playChannel(channel);
+        
+        // ✅ إذا كان هناك مشغل خارجي فقط، انتقل مباشرة إليه
+        if (channel.embeddedPlayerCode && channel.embeddedPlayerCode.trim() !== '' && 
+            getAllQualityLinks(channel).length === 0) {
+          openExternalPlayer(channel.embeddedPlayerCode);
+        } else {
+          playChannel(channel);
+        }
       };
       channelsContainer.appendChild(card);
     });
@@ -422,7 +413,41 @@ function playChannel(channel) {
   }
 
   const qualityLinks = getAllQualityLinks(channel);
-  if (qualityLinks.length > 1) {
+  
+  // ✅ إضافة زر المشغل الخارجي إذا كان موجوداً
+  if (channel.embeddedPlayerCode && channel.embeddedPlayerCode.trim() !== '') {
+    qualityButtons.innerHTML = '';
+    qualityButtons.style.display = 'flex';
+    
+    // إضافة أزرار الجودة العادية
+    if (qualityLinks.length > 0) {
+      qualityLinks.forEach(({label, url}, index) => {
+        const btn = document.createElement('button');
+        btn.textContent = label;
+        btn.onclick = () => {
+          loadStream(url, btn);
+        };
+        qualityButtons.appendChild(btn);
+        if (index === 0) btn.classList.add('active');
+      });
+    }
+    
+    // إضافة زر المشغل الخارجي
+    const externalBtn = document.createElement('button');
+    externalBtn.textContent = 'مشغل خارجي';
+    externalBtn.className = 'external-player';
+    externalBtn.onclick = () => {
+      openExternalPlayer(channel.embeddedPlayerCode);
+    };
+    qualityButtons.appendChild(externalBtn);
+    
+    // تشغيل الجودة الأولى تلقائياً
+    if (qualityLinks.length > 0) {
+      loadStream(qualityLinks[0].url, qualityButtons.children[0]);
+    }
+  } 
+  else if (qualityLinks.length > 0) {
+    // الكود القديم إذا لم يكن هناك مشغل خارجي
     qualityButtons.innerHTML = '';
     qualityButtons.style.display = 'flex';
     qualityLinks.forEach(({label, url}, index) => {
@@ -435,12 +460,65 @@ function playChannel(channel) {
       if (index === 0) btn.classList.add('active');
     });
     loadStream(qualityLinks[0].url, qualityButtons.children[0]);
-  } else if (qualityLinks.length === 1) {
-    qualityButtons.style.display = 'none';
-    loadStream(qualityLinks[0].url);
   } else {
     alert('لا توجد روابط تشغيل متاحة لهذه القناة.');
   }
+}
+
+// ✅ الحل البسيط والفعال لـ AppCreator24
+function openExternalPlayer(playerCode) {
+  // ✅ الحل 1: فتح في iframe داخل التطبيق مع زر عودة
+  const iframeHtml = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <style>
+        body { 
+          margin: 0; padding: 50px 0 0 0; background: #000; 
+          position: relative; min-height: 100vh;
+        }
+        .back-btn { 
+          position: fixed; top: 10px; right: 10px; 
+          background: #007bff; color: white; border: none; 
+          padding: 10px 15px; border-radius: 20px; cursor: pointer; 
+          z-index: 10000; font-size: 14px; font-weight: bold;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+      </style>
+    </head>
+    <body>
+      <button class="back-btn" onclick="window.parent.postMessage('closeExternalPlayer', '*')">
+        ← العودة
+      </button>
+      ${playerCode}
+    </body>
+    </html>
+  `;
+  
+  // ✅ إنشاء iframe لعرض المشغل الخارجي
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    border: none;
+    z-index: 20000;
+    background: #000;
+  `;
+  iframe.srcdoc = iframeHtml;
+  document.body.appendChild(iframe);
+  
+  // ✅ الاستماع لرسالة الإغلاق من الـ iframe
+  window.addEventListener('message', function(event) {
+    if (event.data === 'closeExternalPlayer') {
+      if (iframe && iframe.parentNode) {
+        iframe.parentNode.removeChild(iframe);
+      }
+    }
+  });
 }
 
 function getAllQualityLinks(channel) {
@@ -464,7 +542,10 @@ function loadStream(url, activeBtn = null) {
     hls = null;
   }
   if (activeBtn) {
-    Array.from(qualityButtons.children).forEach(btn => btn.classList.remove('active'));
+    Array.from(qualityButtons.children).forEach(btn => {
+      if (btn.classList.contains('external-player')) return;
+      btn.classList.remove('active');
+    });
     activeBtn.classList.add('active');
   }
   
@@ -497,7 +578,6 @@ backButton.onclick = () => {
   qualityButtons.style.display = 'none';
 
   if (navigationStack.length === 0) {
-    // إذا لم يكن هناك تاريخ، نرجع للصفحة الرئيسية
     loadSections();
     backButton.style.display = 'none';
     return;
@@ -507,12 +587,10 @@ backButton.onclick = () => {
   
   switch (previousState.type) {
     case 'channels':
-      // الرجوع من المشغل إلى القنوات
       loadChannels(previousState.categoryId);
       break;
       
     case 'sections':
-      // الرجوع من القنوات إلى الأقسام
       loadSections(previousState.parentId);
       break;
   }
