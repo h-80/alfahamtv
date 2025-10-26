@@ -38,7 +38,9 @@
   #qualityButtons { position:fixed; top:0; left:0; width:100%; background:rgba(0,0,0,0.7); display:flex; overflow-x:auto; gap:8px; padding:6px 10px; z-index:10003; }
   #qualityButtons button { background:rgba(0,0,0,0.6); color:#fff; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-weight:bold; white-space:nowrap; }
   #qualityButtons button.active { background:#007bff; }
+  #qualityButtons button.external { background:#28a745; }
   #backButton { position:fixed; bottom:15px; right:15px; background:rgba(0,0,0,0.6); color:white; border:none; border-radius:50%; width:40px; height:40px; font-size:24px; cursor:pointer; z-index:10004; display:flex; align-items:center; justify-content:center; }
+  .loading { text-align: center; padding: 20px; font-size: 1.2rem; }
 </style>
 </head>
 <body>
@@ -46,7 +48,12 @@
 <div class="channels-container" id="channelsContainer" style="display:none;"></div>
 
 <div id="playerContainer">
-  <video id="videoPlayer" controls autoplay></video>
+  <video id="videoPlayer" 
+         controls 
+         autoplay 
+         playsinline 
+         webkit-playsinline 
+         crossorigin="anonymous"></video>
   <div id="qualityButtons"></div>
 </div>
 <button id="backButton" style="display:none;">←</button>
@@ -78,8 +85,11 @@ const qualityButtons = document.getElementById("qualityButtons");
 let hls = null;
 let currentCategoryId = null;
 
+// كشف إذا كان التطبيق يعمل في AppMaster أو WebView
+const isInApp = /WebView|AppMaster|Android|iPhone|iPad/i.test(navigator.userAgent);
+
 async function loadSections(parentId = '') {
-  sectionsContainer.innerHTML = 'جارٍ التحميل...';
+  sectionsContainer.innerHTML = '<div class="loading">جارٍ التحميل...</div>';
   channelsContainer.style.display = 'none';
   playerContainer.style.display = 'none';
 
@@ -93,7 +103,7 @@ async function loadSections(parentId = '') {
     filteredCategories.forEach(([key, cat])=>{
       const card = document.createElement('div');
       card.className='section-card';
-      card.innerHTML=`<img src="${cat.image||''}" class="section-image"/><div class="section-title">${cat.name}</div>`;
+      card.innerHTML=`<img src="${cat.image||''}" class="section-image" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiBmaWxsPSIjMzMzIi8+Cjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE0IiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5vIEltYWdlPC90ZXh0Pgo8L3N2Zz4K'"/><div class="section-title">${cat.name}</div>`;
       card.onclick=()=>loadChannels(key);
       sectionsContainer.appendChild(card);
     });
@@ -108,19 +118,19 @@ function loadChannels(categoryId){
   channelsContainer.style.display='grid';
   playerContainer.style.display='none';
   backButton.style.display='flex';
-  channelsContainer.innerHTML='جارٍ التحميل...';
+  channelsContainer.innerHTML='<div class="loading">جارٍ تحميل القنوات...</div>';
 
   db.ref('channels').orderByChild('category').equalTo(categoryId).once("value").then(snapshot=>{
     const channels = snapshot.val() || {};
     channelsContainer.innerHTML='';
     if(Object.keys(channels).length===0){
-      channelsContainer.innerHTML='<p>لا توجد قنوات في هذا القسم.</p>';
+      channelsContainer.innerHTML='<div class="loading">لا توجد قنوات في هذا القسم.</div>';
       return;
     }
     Object.entries(channels).forEach(([key,ch])=>{
       const card=document.createElement('div');
       card.className='channel-card';
-      card.innerHTML=`<img src="${ch.logo||''}" class="channel-logo"/><div class="channel-name">${ch.name}</div>`;
+      card.innerHTML=`<img src="${ch.logo||''}" class="channel-logo" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiBmaWxsPSIjMzMzIi8+Cjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjEyIiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5vIExvZ288L3RleHQ+Cjwvc3ZnPgo='"/><div class="channel-name">${ch.name}</div>`;
       card.onclick=()=>playChannel(ch);
       channelsContainer.appendChild(card);
     });
@@ -128,12 +138,7 @@ function loadChannels(categoryId){
 }
 
 function playChannel(channel){
-  sectionsContainer.style.display='none';
-  channelsContainer.style.display='none';
-  playerContainer.style.display='flex';
-  backButton.style.display='flex';
-  qualityButtons.innerHTML='';
-
+  // جمع كل الروابط
   const urls = [];
   if(channel.urlMain) urls.push({name:'Main', url:channel.urlMain});
   if(channel.urlHD) urls.push({name:'HD', url:channel.urlHD});
@@ -145,53 +150,136 @@ function playChannel(channel){
     });
   }
 
-  function playStream(url){
-    if(hls) {
-      hls.destroy();
-      hls = null;
-    }
-    videoElement.pause();
-    videoElement.removeAttribute('src');
-    videoElement.load();
-
-    if(url.endsWith('.m3u8') && Hls.isSupported()){
-      hls = new Hls();
-      hls.loadSource(url);
-      hls.attachMedia(videoElement);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        videoElement.play();
-      });
-    } else {
-      videoElement.src = url;
-      videoElement.play();
+  // المحاولة الأولى: استخدام مشغل AppMaster المدمج إذا كان متاحاً
+  if (isInApp && typeof window.android !== 'undefined' && window.android.playVideo) {
+    try {
+      window.android.playVideo(urls[0].url, channel.name);
+      return;
+    } catch (e) {
+      console.log('Android interface failed, falling back to web player');
     }
   }
 
-  urls.forEach((q, index) => {
-    const btn = document.createElement('button');
-    btn.textContent = q.name;
-    btn.onclick = () => {
-      playStream(q.url);
-      Array.from(qualityButtons.children).forEach(b => b.classList.remove('active'));
+  // المحاولة الثانية: استخدام المشغل العادي
+  sectionsContainer.style.display='none';
+  channelsContainer.style.display='none';
+  playerContainer.style.display='flex';
+  backButton.style.display='flex';
+  qualityButtons.innerHTML='';
+
+  // إعدادات محسنة للفيديو في WebView
+  if(isInApp) {
+    videoElement.setAttribute('playsinline', 'true');
+    videoElement.setAttribute('webkit-playsinline', 'true');
+    videoElement.setAttribute('crossorigin', 'anonymous');
+  }
+
+  urls.forEach((q,index)=>{
+    const btn=document.createElement('button');
+    btn.textContent=q.name;
+    btn.onclick=()=>{
+      if(hls) hls.destroy();
+      
+      if(q.url.endsWith('.m3u8') && Hls.isSupported()){
+        hls=new Hls({
+          enableWorker: false, // مهم للـ WebView
+          lowLatencyMode: true,
+          backBufferLength: 90,
+          maxBufferLength: 30
+        });
+        hls.loadSource(q.url);
+        hls.attachMedia(videoElement);
+        hls.on(Hls.Events.MANIFEST_PARSED,()=>{
+          videoElement.play().catch(e=>{
+            console.log('Auto-play prevented:', e);
+            // عرض رسالة للمستخدم للنقر على التشغيل
+            videoElement.controls = true;
+          });
+        });
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          if (data.fatal) {
+            switch(data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.log('فشل في تحميل الفيديو، جاري المحاولة بالطريقة البديلة');
+                videoElement.src = q.url;
+                videoElement.play().catch(e => console.log('Play failed:', e));
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                hls.recoverMediaError();
+                break;
+              default:
+                console.log('خطأ غير معروف في HLS');
+                break;
+            }
+          }
+        });
+      }else{
+        videoElement.src=q.url;
+        videoElement.play().catch(e=>{
+          console.log('Auto-play prevented:', e);
+          videoElement.controls = true;
+        });
+      }
+      Array.from(qualityButtons.children).forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
     };
-    if(index === 0) btn.classList.add('active');
+    if(index===0) btn.classList.add('active');
     qualityButtons.appendChild(btn);
   });
 
+  // إضافة زر المشغل الخارجي كخيار بديل
+  if (urls.length > 0) {
+    const externalBtn = document.createElement('button');
+    externalBtn.textContent = 'فتح في مشغل خارجي';
+    externalBtn.className = 'external';
+    externalBtn.onclick = () => {
+      const firstUrl = urls[0].url;
+      // محاولة فتح في مشغل خارجي
+      window.open(firstUrl, '_blank');
+    };
+    qualityButtons.appendChild(externalBtn);
+  }
+
+  // تشغيل أول رابط تلقائيًا
   if(urls.length > 0){
-    playStream(urls[0].url);
+    const first = urls[0];
+    if(first.url.endsWith('.m3u8') && Hls.isSupported()){
+      hls=new Hls({
+        enableWorker: false,
+        lowLatencyMode: true,
+        backBufferLength: 90
+      });
+      hls.loadSource(first.url);
+      hls.attachMedia(videoElement);
+      hls.on(Hls.Events.MANIFEST_PARSED,()=>{
+        videoElement.play().catch(e=>{
+          console.log('Auto-play prevented:', e);
+          videoElement.controls = true;
+        });
+      });
+    }else{
+      videoElement.src=first.url;
+      videoElement.play().catch(e=>{
+        console.log('Auto-play prevented:', e);
+        videoElement.controls = true;
+      });
+    }
   }
 }
 
 backButton.onclick=()=>{
-  if(hls) hls.destroy();
+  if(hls) {
+    hls.destroy();
+    hls = null;
+  }
   videoElement.pause();
   videoElement.removeAttribute('src');
   videoElement.load();
+  
   if(playerContainer.style.display==='flex'){
     playerContainer.style.display='none';
     channelsContainer.style.display='grid';
+    backButton.style.display='flex';
   }else if(channelsContainer.style.display==='grid'){
     channelsContainer.style.display='none';
     sectionsContainer.style.display='grid';
@@ -199,7 +287,26 @@ backButton.onclick=()=>{
   }
 };
 
+// تحميل الأقسام عند بدء التشغيل
 loadSections();
+
+// إضافة event listener للتحكم في وضع الملء الشاشة
+videoElement.addEventListener('webkitpresentationmodechanged', function(e) {
+  console.log('Presentation mode changed: ', e.target.webkitPresentationMode);
+});
+
+// تحسين الأداء في الأجهزة المحمولة
+if (isInApp) {
+  document.addEventListener('DOMContentLoaded', function() {
+    // تحسينات للأداء
+    if ('connection' in navigator) {
+      const connection = navigator.connection;
+      if (connection.saveData) {
+        console.log('وضع توفير البيانات مفعل');
+      }
+    }
+  });
+}
 </script>
 </body>
 </html>
