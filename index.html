@@ -5,57 +5,269 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Alfaham TV</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Cairo&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
+  
+  * {
+    box-sizing: border-box;
+  }
+  
   body {
     margin: 0;
+    padding: 0;
     font-family: 'Cairo', sans-serif;
-    background: url('https://j.top4top.io/p_35842rci70.png') no-repeat center center fixed;
+    background: url('https://i.top4top.io/p_3586ia2q10.png') no-repeat center center fixed;
     background-size: cover;
     color: #fff;
-    font-size: 0.85rem;
+    background-color: #0a0a0a;
+    min-height: 100vh;
   }
+  
+  /* الحاويات الرئيسية */
   .container, .channels-container {
-    padding: 15px;
+    padding: 10px;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-    gap: 15px;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
     direction: rtl;
-    justify-content: start;
+  }
+  
+  /* كروت الأقسام والقنوات */
+  .section-card, .channel-card {
+    background: #ffffff;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    border: 1px solid #e8e8e8;
+    overflow: hidden;
+    height: 200px;
+  }
+
+  .section-card:hover, .channel-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  }
+
+  /* الصور مع إطار مستوى واحد */
+  .section-image, .channel-logo {
+    width: 140px;
+    height: 140px;
+    object-fit: cover;
+    border-radius: 10px;
+    margin-top: 8px;
+    border: 1px solid #f0f0f0; /* إطار مستوى واحد */
+    background: #ffffff;
+  }
+
+  /* العناوين - حجم نص أكبر */
+  .section-title, .channel-name {
+    font-weight: 700;
+    font-size: 0.95rem; /* حجم نص أكبر */
+    color: #000000;
+    width: 100%;
+    text-align: center;
+    padding: 8px 5px;
+    margin: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    border-top: 1px solid #f0f0f0;
+    background: #f8f8f8;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* المشغل - نفس التصميم حرفياً من الكود الذي أرسلته */
+  #playerContainer {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: black;
+    z-index: 10000;
+    overflow: hidden;
+    flex-direction: column;
+  }
+
+  #videoPlayer {
+    width: 100%;
+    height: calc(100% - 60px);
+    background-color: black;
+  }
+
+  #qualityButtons {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    overflow-x: auto;
+    gap: 8px;
+    padding: 6px 10px;
+    box-sizing: border-box;
+    z-index: 10003;
+    transition: opacity 0.5s ease;
+    opacity: 1;
+  }
+
+  #qualityButtons.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  #qualityButtons button {
+    background-color: rgba(0,0,0,0.6);
+    border: none;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 14px;
+    flex: 0 0 auto;
+    transition: background-color 0.3s;
+    white-space: nowrap;
+  }
+
+  #qualityButtons button:hover {
+    background-color: rgba(255,255,255,0.2);
+  }
+
+  #qualityButtons button.active {
+    background-color: #007bff;
+  }
+
+  #backButton {
+    position: fixed;
+    bottom: 15px;
+    right: 15px;
+    background-color: rgba(0,0,0,0.6);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    font-size: 24px;
+    cursor: pointer;
+    z-index: 10004;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+  }
+
+  /* التحميل - مخفي */
+  #loading {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 20px 30px;
+    border-radius: 10px;
+    z-index: 10003;
+    display: none; /* مخفي افتراضياً */
     text-align: center;
   }
-  .section-card, .channel-card {
-    width: 100px; height: 140px;
-    background: transparent; border: none;
-    cursor: pointer; transition: transform 0.2s;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: flex-start;
+
+  .loading-spinner {
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #007bff;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 10px;
   }
-  .section-card:hover, .channel-card:hover { transform: scale(1.05); }
-  .section-image, .channel-logo { width: 100px; height: 100px; object-fit: cover; border-radius: 10px; border: 1px solid #444; margin-bottom:5px; }
-  .section-title, .channel-name { font-weight: bold; font-size: 0.8rem; color: #fff; text-align:center; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
-  #playerContainer { display: none; position: fixed; top:0; left:0; width:100vw; height:100vh; background:black; z-index:10000; flex-direction:column; }
-  #videoPlayer { width:100%; height:calc(100% - 60px); background:black; }
-  #qualityButtons { position:fixed; top:0; left:0; width:100%; background:rgba(0,0,0,0.7); display:flex; overflow-x:auto; gap:8px; padding:6px 10px; z-index:10003; }
-  #qualityButtons button { background:rgba(0,0,0,0.6); color:#fff; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-weight:bold; white-space:nowrap; }
-  #qualityButtons button.active { background:#007bff; }
-  #backButton { position:fixed; bottom:15px; right:15px; background:rgba(0,0,0,0.6); color:white; border:none; border-radius:50%; width:40px; height:40px; font-size:24px; cursor:pointer; z-index:10004; display:flex; align-items:center; justify-content:center; }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  /* التجاوب */
+  @media (max-width: 768px) {
+    .container, .channels-container {
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 10px;
+      padding: 8px;
+    }
+
+    .section-card, .channel-card {
+      height: 180px;
+    }
+
+    .section-image, .channel-logo {
+      width: 120px;
+      height: 120px;
+    }
+
+    .section-title, .channel-name {
+      font-size: 0.9rem; /* حجم نص أكبر للجوال */
+      height: 28px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .container, .channels-container {
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 8px;
+    }
+
+    .section-card, .channel-card {
+      height: 160px;
+    }
+
+    .section-image, .channel-logo {
+      width: 100px;
+      height: 100px;
+    }
+
+    .section-title, .channel-name {
+      font-size: 0.85rem; /* حجم نص أكبر للجوال */
+      height: 26px;
+      padding: 6px 3px;
+    }
+  }
 </style>
 </head>
 <body>
+
+<!-- الواجهة الرئيسية -->
 <div class="container" id="sectionsContainer"></div>
 <div class="channels-container" id="channelsContainer" style="display:none;"></div>
 
+<!-- المشغل - نفس التصميم حرفياً -->
 <div id="playerContainer">
   <video id="videoPlayer" controls autoplay playsinline webkit-playsinline></video>
-  <div id="qualityButtons"></div>
+  <div id="qualityButtons" style="display:none;"></div>
 </div>
-<button id="backButton" style="display:none;">←</button>
+<button id="backButton" title="الرجوع" style="display:none;">←</button>
 
+<!-- التحميل - مخفي -->
+<div id="loading">
+  <div class="loading-spinner"></div>
+  <div>جاري التحميل...</div>
+</div>
+
+<!-- المكتبات -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
 <script>
+// التهيئة الأساسية
 const firebaseConfig = {
   apiKey: "AIzaSyARzpeY20p5R1RXGYX_83zQkyLHywp-SE4",
   authDomain: "one-sport-67e48.firebaseapp.com",
@@ -65,144 +277,253 @@ const firebaseConfig = {
   messagingSenderId: "238395812570",
   appId: "1:238395812570:web:6361f8ecac34d1061fd3e3"
 };
+
+// تهيئة Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
+// العناصر
 const sectionsContainer = document.getElementById("sectionsContainer");
 const channelsContainer = document.getElementById("channelsContainer");
 const playerContainer = document.getElementById("playerContainer");
 const videoElement = document.getElementById("videoPlayer");
 const backButton = document.getElementById("backButton");
 const qualityButtons = document.getElementById("qualityButtons");
+const loading = document.getElementById("loading");
 
 let hls = null;
 let currentCategoryId = null;
+let currentChannel = null;
+let navigationStack = [];
 
+const qualityKeys = [
+  { key: 'urlMain', label: 'MAIN' },
+  { key: 'urlHD', label: 'HD' },
+  { key: 'urlSD', label: 'SD' },
+  { key: 'urlLow', label: 'LOW' }
+];
+
+// دوال المساعدة
+function showLoading() {
+  // loading.style.display = 'block'; // ❌ مخفي تماماً
+}
+
+function hideLoading() {
+  loading.style.display = 'none';
+}
+
+// تحميل الأقسام من Firebase
 async function loadSections(parentId = '') {
-  sectionsContainer.innerHTML = 'جارٍ التحميل...';
-  channelsContainer.style.display = 'none';
-  playerContainer.style.display = 'none';
-
-  const snapshot = await db.ref('categories').once("value");
-  const categories = snapshot.val() || {};
+  // ❌ لا تظهر جملة التحميل
   sectionsContainer.innerHTML = '';
+  
+  try {
+    const snapshot = await db.ref('categories').once("value");
+    const categories = snapshot.val() || {};
+    
+    sectionsContainer.innerHTML = '';
+    channelsContainer.style.display = 'none';
+    playerContainer.style.display = 'none';
 
-  const filteredCategories = Object.entries(categories).filter(([key, cat]) => (cat.parent||'')===parentId);
+    const filteredCategories = Object.entries(categories)
+      .filter(([key, cat]) => (cat.parent || '') === parentId);
 
-  if(filteredCategories.length>0){
-    filteredCategories.forEach(([key, cat])=>{
-      const card = document.createElement('div');
-      card.className='section-card';
-      card.innerHTML=`<img src="${cat.image||''}" class="section-image"/><div class="section-title">${cat.name}</div>`;
-      card.onclick=()=>loadChannels(key);
-      sectionsContainer.appendChild(card);
-    });
-  }else{
-    loadChannels(parentId);
+    if (filteredCategories.length > 0) {
+      filteredCategories.forEach(([key, cat]) => {
+        const card = createCard(cat.image, cat.name, () => {
+          navigationStack.push(parentId);
+          loadChannels(key);
+          backButton.style.display = 'flex';
+        });
+        sectionsContainer.appendChild(card);
+      });
+
+      sectionsContainer.style.display = 'grid';
+    } else {
+      loadChannels(parentId);
+    }
+  } catch (error) {
+    sectionsContainer.innerHTML = '<div style="grid-column:1/-1;color:white;text-align:center;padding:20px;">خطأ في تحميل الأقسام</div>';
   }
 }
 
-function loadChannels(categoryId){
-  currentCategoryId=categoryId;
-  sectionsContainer.style.display='none';
-  channelsContainer.style.display='grid';
-  playerContainer.style.display='none';
-  backButton.style.display='flex';
-  channelsContainer.innerHTML='جارٍ التحميل...';
+// تحميل القنوات من Firebase
+async function loadChannels(categoryId) {
+  // ❌ لا تظهر جملة التحميل
+  currentCategoryId = categoryId;
+  sectionsContainer.style.display = 'none';
+  channelsContainer.style.display = 'grid';
+  channelsContainer.innerHTML = '';
 
-  db.ref('channels').orderByChild('category').equalTo(categoryId).once("value").then(snapshot=>{
+  try {
+    const snapshot = await db.ref('channels')
+      .orderByChild('category')
+      .equalTo(categoryId)
+      .once("value");
+    
     const channels = snapshot.val() || {};
-    channelsContainer.innerHTML='';
-    if(Object.keys(channels).length===0){
-      channelsContainer.innerHTML='<p>لا توجد قنوات في هذا القسم.</p>';
+
+    if (Object.keys(channels).length === 0) {
+      channelsContainer.innerHTML = '<div style="grid-column:1/-1;color:white;text-align:center;padding:20px;">لا توجد قنوات في هذا القسم</div>';
       return;
     }
-    Object.entries(channels).forEach(([key,ch])=>{
-      const card=document.createElement('div');
-      card.className='channel-card';
-      card.innerHTML=`<img src="${ch.logo||''}" class="channel-logo"/><div class="channel-name">${ch.name}</div>`;
-      card.onclick=()=>playChannel(ch);
+
+    Object.entries(channels).forEach(([key, channel]) => {
+      const card = createCard(channel.logo, channel.name, () => playChannel(channel));
       channelsContainer.appendChild(card);
     });
-  });
+  } catch (error) {
+    channelsContainer.innerHTML = '<div style="grid-column:1/-1;color:white;text-align:center;padding:20px;">خطأ في تحميل القنوات</div>';
+  }
 }
 
-function playChannel(channel){
-  sectionsContainer.style.display='none';
-  channelsContainer.style.display='none';
-  playerContainer.style.display='flex';
-  backButton.style.display='flex';
-  qualityButtons.innerHTML='';
+// إنشاء كرت
+function createCard(image, title, onClick) {
+  const card = document.createElement('div');
+  card.className = image ? 'channel-card' : 'section-card';
+  card.innerHTML = `
+    <img src="${image || ''}" class="${image ? 'channel-logo' : 'section-image'}" 
+         onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTQwIiBoZWlnaHQ9IjE0MCIgdmlld0JveD0iMCAwIDE0MCAxNDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNDAiIGhlaWdodD0iMTQwIiBmaWxsPSIjRjBGMEYwIi8+CjxwYXRoIGQ9Ik03MCA0MEM2Mi4yODQzIDQwIDU2IDQ2LjI4NDMgNTYgNTRDNTYgNjEuNzE1NyA2Mi4yODQzIDY4IDcwIDY4Qzc3LjcxNTcgNjggODQgNjEuNzE1NyA4NCA1NEM4NCA0Ni4yODQzIDc3LjcxNTcgNDAgNzAgNDBaTTcwIDk0QzUxLjY3IDk0IDM2IDk2LjY3IDM2IDEwNFYxMTBIMTA0VjEwNEMxMDQgOTYuNjcgODguMzMgOTQgNzAgOTRaIiBmaWxsPSIjQ0RDRENEIi8+Cjwvc3ZnPgo='"/>
+    <div class="${image ? 'channel-name' : 'section-title'}">${title}</div>
+  `;
+  card.onclick = onClick;
+  return card;
+}
 
-  // جمع كل الروابط
-  const urls = [];
-  if(channel.urlMain) urls.push({name:'Main', url:channel.urlMain});
-  if(channel.urlHD) urls.push({name:'HD', url:channel.urlHD});
-  if(channel.urlSD) urls.push({name:'SD', url:channel.urlSD});
-  if(channel.urlLow) urls.push({name:'Low', url:channel.urlLow});
-  if(channel.extraLinks){
-    Object.entries(channel.extraLinks).forEach(([name,url])=>{
-      if(name && url) urls.push({name,url});
+// ✅ المشغل الجديد - نفس الكود حرفياً من الذي أرسلته
+function getAllQualityLinks(channel) {
+  const links = [];
+  qualityKeys.forEach(({key, label}) => {
+    if (channel[key]) links.push({label, url: channel[key]});
+  });
+  
+  // الروابط الإضافية من Firebase
+  if (channel.extraLinks) {
+    Object.entries(channel.extraLinks).forEach(([name, url]) => {
+      if (name && url) links.push({label: name, url});
     });
   }
+  
+  return links;
+}
 
-  urls.forEach((q,index)=>{
-    const btn=document.createElement('button');
-    btn.textContent=q.name;
-    btn.onclick=()=>{
-      if(hls) hls.destroy();
-      
-      if(q.url.endsWith('.m3u8') && Hls.isSupported()){
-        hls=new Hls({
-          enableWorker: false,
-          lowLatencyMode: true,
-          backBufferLength: 90
-        });
-        hls.loadSource(q.url);
-        hls.attachMedia(videoElement);
-        hls.on(Hls.Events.MANIFEST_PARSED,()=>videoElement.play());
-      }else{
-        videoElement.src=q.url;
-        videoElement.play();
-      }
-      Array.from(qualityButtons.children).forEach(b=>b.classList.remove('active'));
-      btn.classList.add('active');
-    };
-    if(index===0) btn.classList.add('active');
-    qualityButtons.appendChild(btn);
-  });
+function playChannel(channel) {
+  currentChannel = channel;
+  sectionsContainer.style.display = 'none';
+  channelsContainer.style.display = 'none';
+  playerContainer.style.display = 'flex';
+  backButton.style.display = 'flex';
 
-  // تشغيل أول رابط تلقائيًا
-  const first = urls[0];
-  if(first.url.endsWith('.m3u8') && Hls.isSupported()){
-    hls=new Hls({
-      enableWorker: false,
-      lowLatencyMode: true
+  if (hls) {
+    hls.destroy();
+    hls = null;
+  }
+
+  const qualityLinks = getAllQualityLinks(channel);
+  if (qualityLinks.length > 1) {
+    qualityButtons.innerHTML = '';
+    qualityButtons.style.display = 'flex';
+    qualityLinks.forEach(({label, url}, index) => {
+      const btn = document.createElement('button');
+      btn.textContent = label;
+      btn.onclick = () => {
+        loadStream(url, btn);
+      };
+      qualityButtons.appendChild(btn);
+      if (index === 0) btn.classList.add('active');
     });
-    hls.loadSource(first.url);
+    loadStream(qualityLinks[0].url, qualityButtons.children[0]);
+  } else if (qualityLinks.length === 1) {
+    qualityButtons.style.display = 'none';
+    loadStream(qualityLinks[0].url);
+  } else {
+    alert('لا توجد روابط تشغيل متاحة لهذه القناة.');
+  }
+}
+
+function loadStream(url, activeBtn = null) {
+  if (hls) {
+    hls.destroy();
+    hls = null;
+  }
+  if (activeBtn) {
+    Array.from(qualityButtons.children).forEach(btn => btn.classList.remove('active'));
+    activeBtn.classList.add('active');
+  }
+  
+  // ❌ لا تظهر جملة التحميل عند تشغيل الفيديو أيضاً
+  // showLoading();
+  
+  if (Hls.isSupported()) {
+    hls = new Hls();
+    hls.loadSource(url);
     hls.attachMedia(videoElement);
-    hls.on(Hls.Events.MANIFEST_PARSED,()=>videoElement.play());
-  }else{
-    videoElement.src=first.url;
-    videoElement.play();
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      videoElement.play();
+      // hideLoading();
+    });
+    hls.on(Hls.Events.ERROR, () => {
+      // hideLoading();
+    });
+  } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+    videoElement.src = url;
+    videoElement.addEventListener('loadedmetadata', () => {
+      videoElement.play();
+      // hideLoading();
+    });
+    videoElement.addEventListener('error', () => {
+      // hideLoading();
+    });
+  } else {
+    // hideLoading();
+    alert('متصفحك لا يدعم تشغيل الفيديو.');
   }
 }
 
-backButton.onclick=()=>{
-  if(hls) hls.destroy();
+// ✅ زر الرجوع - نفس الكود حرفياً
+backButton.onclick = () => {
+  if (hls) {
+    hls.destroy();
+    hls = null;
+  }
   videoElement.pause();
   videoElement.removeAttribute('src');
   videoElement.load();
-  if(playerContainer.style.display==='flex'){
-    playerContainer.style.display='none';
-    channelsContainer.style.display='grid';
-  }else if(channelsContainer.style.display==='grid'){
-    channelsContainer.style.display='none';
-    sectionsContainer.style.display='grid';
-    backButton.style.display='none';
+
+  qualityButtons.style.display = 'none';
+
+  if (playerContainer.style.display === 'flex') {
+    playerContainer.style.display = 'none';
+    if (currentCategoryId) {
+      loadChannels(currentCategoryId);
+    } else {
+      loadSections();
+      backButton.style.display = 'none';
+    }
+  } else if (navigationStack.length > 0) {
+    const prev = navigationStack.pop();
+    if (prev) {
+      loadSections(prev);
+      if (navigationStack.length === 0) {
+        backButton.style.display = 'none';
+      }
+    } else {
+      loadSections();
+      backButton.style.display = 'none';
+    }
+  } else {
+    loadSections();
+    backButton.style.display = 'none';
   }
 };
 
+// إعدادات الفيديو للتطبيقات
+videoElement.setAttribute('playsinline', 'true');
+videoElement.setAttribute('webkit-playsinline', 'true');
+videoElement.setAttribute('x5-video-player-type', 'h5');
+videoElement.setAttribute('x5-video-player-fullscreen', 'true');
+
+// بدء التطبيق
 loadSections();
 </script>
 </body>
